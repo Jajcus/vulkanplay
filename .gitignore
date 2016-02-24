@@ -1,0 +1,8 @@
+*.o
+*_spv.c
+*~
+.deps
+log
+vk_apidump.txt
+vk_layer_settings.txt
+vulkanplay

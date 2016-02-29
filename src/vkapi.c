@@ -72,6 +72,8 @@ int vkapi_init_instance(const char * app_name) {
 	GET_INST_PROC(vkDestroyInstance);
 	GET_INST_PROC(vkDestroySurfaceKHR);
 	GET_INST_PROC(vkEnumeratePhysicalDevices);
+	GET_INST_PROC(vkGetPhysicalDeviceFeatures);
+	GET_INST_PROC(vkGetPhysicalDeviceMemoryProperties);
 	GET_INST_PROC(vkGetPhysicalDeviceProperties);
 	GET_INST_PROC(vkGetPhysicalDeviceQueueFamilyProperties);
 	GET_INST_PROC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
@@ -112,6 +114,7 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkCreateImageView);
 	GET_DEV_PROC(vkCreatePipelineLayout);
 	GET_DEV_PROC(vkCreateQueryPool);
+	GET_DEV_PROC(vkCreateRenderPass);
 	GET_DEV_PROC(vkCreateSemaphore);
 	GET_DEV_PROC(vkCreateShaderModule);
 	GET_DEV_PROC(vkCreateSwapchainKHR);
@@ -125,6 +128,7 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkDestroyPipeline);
 	GET_DEV_PROC(vkDestroyPipelineLayout);
 	GET_DEV_PROC(vkDestroyQueryPool);
+	GET_DEV_PROC(vkDestroyRenderPass);
 	GET_DEV_PROC(vkDestroySemaphore);
 	GET_DEV_PROC(vkDestroyShaderModule);
 	GET_DEV_PROC(vkDestroySwapchainKHR);
@@ -133,7 +137,6 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkFreeDescriptorSets);
 	GET_DEV_PROC(vkFreeMemory);
 	GET_DEV_PROC(vkGetDeviceQueue);
-	GET_DEV_PROC(vkGetPhysicalDeviceMemoryProperties);
 	GET_DEV_PROC(vkGetQueryPoolResults);
 	GET_DEV_PROC(vkGetSwapchainImagesKHR);
 	GET_DEV_PROC(vkMapMemory);
@@ -209,7 +212,7 @@ int vkapi_init_device(VkSurfaceKHR surface) {
 				}
 				if (surface) {
 					VkBool32 supported;
-					result = vkGetPhysicalDeviceSurfaceSupportKHR(vkapi.physical_devices[i], j, surface, &supported);
+					result = vkapi.vkGetPhysicalDeviceSurfaceSupportKHR(vkapi.physical_devices[i], j, surface, &supported);
 					if (result != VK_SUCCESS) {
 						printf("vkGetPhysicalDeviceSurfaceSupportKHR failed");
 						continue;
@@ -243,9 +246,9 @@ int vkapi_init_device(VkSurfaceKHR surface) {
 				selected_dev, selected_g_qf);
 	}
 
-	vkGetPhysicalDeviceFeatures(vkapi.physical_devices[selected_dev], &vkapi.device_features);
+	vkapi.vkGetPhysicalDeviceFeatures(vkapi.physical_devices[selected_dev], &vkapi.device_features);
 
-	vkGetPhysicalDeviceMemoryProperties(vkapi.physical_devices[selected_dev], &vkapi.memory_properties);
+	vkapi.vkGetPhysicalDeviceMemoryProperties(vkapi.physical_devices[selected_dev], &vkapi.memory_properties);
 
 	vkapi.g_queue_family = selected_p_qf;
 	vkapi.p_queue_family = selected_p_qf;
@@ -371,7 +374,7 @@ void vkapi_finish_device(void) {
 		vkapi.s_modes_count = 0;
 	}
 	if (vkapi.device) {
-		vkDeviceWaitIdle(vkapi.device);
+		vkapi.vkDeviceWaitIdle(vkapi.device);
 		vkapi.vkDestroyDevice(vkapi.device, NULL);
 	}
 	vkapi.device = VK_NULL_HANDLE;

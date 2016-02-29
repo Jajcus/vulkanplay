@@ -109,10 +109,10 @@ struct model {
 	void * mapped_memory;
 } model = {};
 
-extern const unsigned char shader_frag_spv[];
-extern unsigned int shader_frag_spv_len;
-extern const unsigned char shader_vert_spv[];
-extern unsigned int shader_vert_spv_len;
+extern const unsigned char main_frag_spv[];
+extern unsigned int main_frag_spv_len;
+extern const unsigned char main_vert_spv[];
+extern unsigned int main_vert_spv_len;
 
 void normal(vec4 result, const vec4 a, const vec4 b, const vec4 c) {
 
@@ -166,18 +166,18 @@ void init_model(struct framebuffer * fb) {
 
 	VkShaderModuleCreateInfo vs_module_ci = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = shader_vert_spv_len,
-		.pCode = (uint32_t *)shader_vert_spv,
+		.codeSize = main_vert_spv_len,
+		.pCode = (uint32_t *)main_vert_spv,
 	};
 	
 	vkapi.vkCreateShaderModule(vkapi.device, &vs_module_ci, NULL, &model.vs_module);
 
 	VkShaderModuleCreateInfo fs_module_ci = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = shader_frag_spv_len,
-		.pCode = (uint32_t *)shader_frag_spv,
+		.codeSize = main_frag_spv_len,
+		.pCode = (uint32_t *)main_frag_spv,
 	};
-	
+
 	vkapi.vkCreateShaderModule(vkapi.device, &fs_module_ci, NULL, &model.fs_module);
 
 	VkPipelineShaderStageCreateInfo shader_stage_ci[] = {
@@ -379,7 +379,7 @@ void init_model(struct framebuffer * fb) {
 
 	vkapi.vkCreateBuffer(vkapi.device, &buffer_ci, NULL, &model.buffer);
 
-	vkBindBufferMemory(vkapi.device, model.buffer, model.memory, 0);
+	vkapi.vkBindBufferMemory(vkapi.device, model.buffer, model.memory, 0);
 
 	VkDescriptorSetAllocateInfo ds_ai = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -655,7 +655,7 @@ VkResult render_init(void) {
 		.pSubpasses = subpasses,
 	};
 
-	result = vkCreateRenderPass(vkapi.device, &render_pass_ci, NULL, &render_ctx.render_pass);
+	result = vkapi.vkCreateRenderPass(vkapi.device, &render_pass_ci, NULL, &render_ctx.render_pass);
 	if (result != VK_SUCCESS) {
 		printf("vkCreateRenderPass failed: %i", result);
 		goto error;
@@ -682,16 +682,16 @@ VkResult render_init(void) {
 	}
 	return VK_SUCCESS;
 error:
-	if (render_ctx.descriptor_pool) vkDestroyDescriptorPool(vkapi.device, render_ctx.descriptor_pool, NULL);
-	if (render_ctx.render_pass) vkDestroyRenderPass(vkapi.device, render_ctx.render_pass, NULL);
+	if (render_ctx.descriptor_pool) vkapi.vkDestroyDescriptorPool(vkapi.device, render_ctx.descriptor_pool, NULL);
+	if (render_ctx.render_pass) vkapi.vkDestroyRenderPass(vkapi.device, render_ctx.render_pass, NULL);
 
 	return VK_ERROR_INITIALIZATION_FAILED;
 }
 
 void render_deinit(void) {
 	
-	if (render_ctx.descriptor_pool) vkDestroyDescriptorPool(vkapi.device, render_ctx.descriptor_pool, NULL);
-	if (render_ctx.render_pass) vkDestroyRenderPass(vkapi.device, render_ctx.render_pass, NULL);
+	if (render_ctx.descriptor_pool) vkapi.vkDestroyDescriptorPool(vkapi.device, render_ctx.descriptor_pool, NULL);
+	if (render_ctx.render_pass) vkapi.vkDestroyRenderPass(vkapi.device, render_ctx.render_pass, NULL);
 }
 
 uint32_t create_swapchain(VkSwapchainKHR *swapchain_p, VkExtent2D *output_extent_p, VkImage** swapchain_images_p) {
@@ -974,7 +974,7 @@ void * render_loop(void * argument) {
 	fprintf(stderr, "render_loop finished normally (exit_requested=%i)\n", exit_requested);
 finish:
 	fprintf(stderr, "render thread cleaning up...\n");
-	vkDeviceWaitIdle(vkapi.device);
+	vkapi.vkDeviceWaitIdle(vkapi.device);
 	destroy_model();
 	render_deinit();
 	vkapi.vkDestroySemaphore(vkapi.device, image_acquired_sem, NULL);
@@ -1021,7 +1021,7 @@ int main(int argc, char **argv) {
 	exit_code = 0;
 
 finish:
-	if (vkapi.device) vkDeviceWaitIdle(vkapi.device);
+	if (vkapi.device) vkapi.vkDeviceWaitIdle(vkapi.device);
 	
 	vkapi_finish_device();
 

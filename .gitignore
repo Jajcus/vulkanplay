@@ -1,7 +1,9 @@
 *.o
 *_spv.c
 *~
+.*.swp
 .deps
+build
 log
 vk_apidump.txt
 vk_layer_settings.txt

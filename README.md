@@ -1,3 +1,4 @@
+# About
 
 I have written this code trying to learn the Vulkan API, just out of curiosity.
 
@@ -7,3 +8,12 @@ Vulkan was never supposed to be easy and no one is supposed to learn 3D graphics
 with Vulkan.
 
 Be warned: better don't use this code for reference.
+
+# Building
+
+```
+mkdir build
+cd build
+cmake ..
+make
+```

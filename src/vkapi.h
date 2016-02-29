@@ -43,6 +43,8 @@ struct vkapi {
 	DEF_INST_PROC(vkEnumerateInstanceExtensionProperties);
 	DEF_INST_PROC(vkEnumerateInstanceLayerProperties);
 	DEF_INST_PROC(vkEnumeratePhysicalDevices);
+	DEF_INST_PROC(vkGetPhysicalDeviceFeatures);
+	DEF_INST_PROC(vkGetPhysicalDeviceMemoryProperties);
 	DEF_INST_PROC(vkGetPhysicalDeviceProperties);
 	DEF_INST_PROC(vkGetPhysicalDeviceQueueFamilyProperties);
 	DEF_INST_PROC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
@@ -74,6 +76,7 @@ struct vkapi {
 	DEF_DEV_PROC(vkCreateImageView);
 	DEF_DEV_PROC(vkCreatePipelineLayout);
 	DEF_DEV_PROC(vkCreateQueryPool);
+	DEF_DEV_PROC(vkCreateRenderPass);
 	DEF_DEV_PROC(vkCreateSemaphore);
 	DEF_DEV_PROC(vkCreateShaderModule);
 	DEF_DEV_PROC(vkCreateSwapchainKHR);
@@ -87,6 +90,7 @@ struct vkapi {
 	DEF_DEV_PROC(vkDestroyPipeline);
 	DEF_DEV_PROC(vkDestroyPipelineLayout);
 	DEF_DEV_PROC(vkDestroyQueryPool);
+	DEF_DEV_PROC(vkDestroyRenderPass);
 	DEF_DEV_PROC(vkDestroySemaphore);
 	DEF_DEV_PROC(vkDestroyShaderModule);
 	DEF_DEV_PROC(vkDestroySwapchainKHR);
@@ -95,7 +99,6 @@ struct vkapi {
 	DEF_DEV_PROC(vkFreeDescriptorSets);
 	DEF_DEV_PROC(vkFreeMemory);
 	DEF_DEV_PROC(vkGetDeviceQueue);
-	DEF_DEV_PROC(vkGetPhysicalDeviceMemoryProperties);
 	DEF_DEV_PROC(vkGetQueryPoolResults);
 	DEF_DEV_PROC(vkGetSwapchainImagesKHR);
 	DEF_DEV_PROC(vkMapMemory);

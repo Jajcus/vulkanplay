@@ -1,3 +1,16 @@
+Third-party code (BSD or MIT licensed):
+
+	cmake/ECMFindModuleHelpers.cmake
+	cmake/FindWayland.cmake
+	cmake/FindXCB.cmake
+	src/linmath.h
+
+see the copyright notices inside.
+
+
+Otherwise the following OSI-approved MIT license applies:
+
+
 Copyright (c) 2016 Jacek Konieczny
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of

@@ -5,6 +5,8 @@
 .deps
 build
 log
+src/Makefile
+src/*/Makefile
 vk_apidump.txt
 vk_layer_settings.txt
 vulkanplay

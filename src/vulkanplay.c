@@ -17,6 +17,10 @@
 #include "platform/plat_xcb.h"
 #endif
 
+#ifdef HAVE_WAYLAND
+#include "platform/plat_wl.h"
+#endif
+
 struct framebuffer {
 
 	VkImage image;
@@ -999,6 +1003,9 @@ int main(int argc, char **argv) {
 
 #ifdef HAVE_XCB
 	if (!surf) surf = plat_xcb_get_surface();
+#endif
+#ifdef HAVE_WAYLAND
+	if (!surf) surf = plat_wl_get_surface();
 #endif
 
 	if (!surf) {

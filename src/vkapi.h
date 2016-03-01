@@ -4,6 +4,9 @@
 #ifdef HAVE_XCB
 #define VK_USE_PLATFORM_XCB_KHR 1
 #endif
+#ifdef HAVE_WAYLAND
+#define VK_USE_PLATFORM_WAYLAND_KHR 1
+#endif
 
 #include <vulkan/vulkan.h>
 
@@ -111,6 +114,9 @@ struct vkapi {
 
 #ifdef HAVE_XCB
 	DEF_INST_PROC(vkCreateXcbSurfaceKHR);
+#endif
+#ifdef HAVE_WAYLAND
+	DEF_INST_PROC(vkCreateWaylandSurfaceKHR);
 #endif
 };
 

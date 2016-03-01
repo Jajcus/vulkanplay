@@ -28,6 +28,9 @@ const char * instance_extensions[] = {
 #ifdef HAVE_XCB
 	"VK_KHR_xcb_surface",
 #endif
+#ifdef HAVE_WAYLAND
+	"VK_KHR_wayland_surface",
+#endif
 	NULL
 };
 
@@ -68,7 +71,6 @@ int vkapi_init_instance(const char * app_name) {
 	}
 	
 	GET_INST_PROC(vkCreateDevice);
-	GET_INST_PROC(vkCreateXcbSurfaceKHR);
 	GET_INST_PROC(vkDestroyInstance);
 	GET_INST_PROC(vkDestroySurfaceKHR);
 	GET_INST_PROC(vkEnumeratePhysicalDevices);
@@ -80,6 +82,12 @@ int vkapi_init_instance(const char * app_name) {
 	GET_INST_PROC(vkGetPhysicalDeviceSurfaceFormatsKHR);
 	GET_INST_PROC(vkGetPhysicalDeviceSurfacePresentModesKHR);
 	GET_INST_PROC(vkGetPhysicalDeviceSurfaceSupportKHR);
+#ifdef HAVE_XCB
+	GET_INST_PROC(vkCreateXcbSurfaceKHR);
+#endif
+#ifdef HAVE_WAYLAND
+	GET_INST_PROC(vkCreateWaylandSurfaceKHR);
+#endif
 	
 	return VK_SUCCESS;
 error:

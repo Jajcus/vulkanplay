@@ -67,10 +67,18 @@ find_package(XCB COMPONENTS XCB)
 if(${XCB_FOUND})
 	add_definitions(-DHAVE_XCB=1)
 	target_sources(vulkanplay PRIVATE src/platform/plat_xcb.c)
+	include_directories(${XCB_XCB_INCLUDE_DIR})
 	set(PLAT_LIBS ${PLAT_LIBS} ${XCB_XCB_LIBRARY})
 endif()
 
 find_package(Wayland COMPONENTS Client)
+if(${Wayland_FOUND})
+	add_definitions(-DHAVE_WAYLAND=1)
+	target_sources(vulkanplay PRIVATE src/platform/plat_wl.c)
+	include_directories(${Wayland_Client_INCLUDE_DIR})
+	set(PLAT_LIBS ${PLAT_LIBS} ${Wayland_Client_LIBRARY})
+endif()
+
 
 set(SHADER_C_FILES)
 foreach(_file ${SHADERS})

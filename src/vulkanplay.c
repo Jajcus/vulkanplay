@@ -11,10 +11,10 @@
 #include "printmath.h"
 
 #include "vkapi.h"
-#include "plat.h"
+#include "platform/plat.h"
 
 #ifdef HAVE_XCB
-#include "plat_xcb.h"
+#include "platform/plat_xcb.h"
 #endif
 
 struct framebuffer {

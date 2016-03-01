@@ -5,11 +5,13 @@ include(CheckSymbolExists)
 
 project(vulkanplay)
 add_executable(vulkanplay
-		src/plat.c
+		src/platform/plat.c
 		src/vkapi.c
 		src/vulkanplay.c
 		)
 set(SHADERS src/shaders/main.vert src/shaders/main.frag)
+
+include_directories(${CMAKE_SOURCE_DIR}/src)
 
 IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
@@ -64,7 +66,7 @@ set(PLAT_LIBS)
 find_package(XCB COMPONENTS XCB)
 if(${XCB_FOUND})
 	add_definitions(-DHAVE_XCB=1)
-	target_sources(vulkanplay PRIVATE src/plat_xcb.c)
+	target_sources(vulkanplay PRIVATE src/platform/plat_xcb.c)
 	set(PLAT_LIBS ${PLAT_LIBS} ${XCB_XCB_LIBRARY})
 endif()
 

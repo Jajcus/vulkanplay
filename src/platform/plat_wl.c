@@ -8,6 +8,8 @@
 
 #include "vkapi.h"
 #include "plat_wl.h"
+#include "surface.h"
+#include "main.h"
 
 struct plat_wl_surface {
 	struct plat_surface plat_surface;
@@ -82,7 +84,7 @@ struct plat_surface* plat_wl_get_surface(void) {
 	};
 
 	printf("vkCreateWaylandSurfaceKHR = %p\n", vkapi.vkCreateWaylandSurfaceKHR);
-	VkResult result = vkapi.vkCreateWaylandSurfaceKHR(vkapi.instance, &surf_ci, NULL, &surf->plat_surface.surface);
+	VkResult result = vkapi.vkCreateWaylandSurfaceKHR(vkapi.instance, &surf_ci, NULL, &surf->plat_surface.vk_surface);
 	if (result != VK_SUCCESS) {
 		printf("vkCreateWaylandSurfaceKHR failed: %i\n", result);
 		goto error;
@@ -91,6 +93,8 @@ struct plat_surface* plat_wl_get_surface(void) {
 
 	surf->plat_surface.event_loop = plat_wl_event_loop;
 	surf->plat_surface.destroy = plat_wl_destroy_surface;
+	surf->plat_surface.width = options.win_width;
+	surf->plat_surface.height = options.win_height;
 
 	return (struct plat_surface *)surf;
 
@@ -112,18 +116,18 @@ void plat_wl_event_loop(struct plat_surface *surf) {
 
 	signal(SIGINT, _plat_wl_sig_handler);
 
-	while(!exit_requested && !_plat_wl_signal_received) {
+	while(!exit_requested() && !_plat_wl_signal_received) {
 		if (wl_display_dispatch(wl_surf->display) < 0) {
-			perror("Main loop error");
-			exit_requested = 1;
+			perror("Wayland main loop error");
+			request_exit();
 		}
 	}
 
-	printf("Finishing platform event loop (exit_requested=%i, signal_received=%i).\n", exit_requested, _plat_wl_signal_received);
+	printf("Finishing platform event loop (exit_requested=%i, signal_received=%i).\n", exit_requested(), _plat_wl_signal_received);
 	if (_plat_wl_signal_received) {
 		printf("Signal %i received\n", _plat_wl_signal_received);
 	}
-	exit_requested = 1;
+	request_exit();
 
 	signal(SIGINT, SIG_DFL);
 }
@@ -132,9 +136,7 @@ void plat_wl_destroy_surface(struct plat_surface *surf) {
 
 	struct plat_wl_surface * wl_surf = (struct plat_wl_surface *)surf;
 
-	if (surf->surface) {
-		vkDestroySurfaceKHR(vkapi.instance, surf->surface, NULL);
-	}
+	finalize_surface(surf);
 
 	if (wl_surf->shell_surface) wl_shell_surface_destroy(wl_surf->shell_surface);
 	if (wl_surf->surface) wl_surface_destroy(wl_surf->surface);

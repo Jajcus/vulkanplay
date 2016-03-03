@@ -4,11 +4,13 @@
 #include <string.h>
 
 #include "vkapi.h"
+#include "surface.h"
+#include "main.h"
 #include "plat_xcb.h"
 
 struct plat_xcb_surface {
 	struct plat_surface plat_surface;
-	
+
 	xcb_connection_t *conn;
 	xcb_window_t wid;
 	xcb_atom_t wm_delete_window_atom;
@@ -41,22 +43,23 @@ struct plat_surface* plat_xcb_get_surface(void) {
 	}
 	xcb_screen_t * screen = xcb_setup_roots_iterator (xcb_get_setup (surf->conn)).data;
 	surf->wid = xcb_generate_id(surf->conn);
-	
+
 	printf("Conn: %p, root: %li, wid: %li\n", surf->conn, (long)screen->root, (long)surf->wid);
 
 	uint32_t mask = XCB_GC_FOREGROUND | XCB_CW_EVENT_MASK;
 	static uint32_t values[] = {
 				0,
-				XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS
+				XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_KEY_PRESS
 				};
 	values[0] = screen->black_pixel;
 
-	xcb_create_window(surf->conn, 
+	xcb_create_window(surf->conn,
                            XCB_COPY_FROM_PARENT,          /* depth               */
                            surf->wid,
                            screen->root,                  /* parent window       */
                            0, 0,                          /* x, y                */
-                           500, 500,			  /* widht, height       */
+                           options.win_width,
+			   options.win_height,
                            10,                            /* border_width        */
                            XCB_WINDOW_CLASS_INPUT_OUTPUT, /* class               */
                            screen->root_visual,           /* visual              */
@@ -71,6 +74,25 @@ struct plat_surface* plat_xcb_get_surface(void) {
                              8,
                              strlen(title),
                              title);
+
+	if (options.fullscreen) {
+		xcb_atom_t _net_wm_state_atom = _get_atom(surf->conn, "_NET_WM_STATE");
+		xcb_atom_t _net_wm_state_fullscreen_atom = _get_atom(surf->conn, "_NET_WM_STATE_FULLSCREEN");
+		if (_net_wm_state_atom != XCB_NONE && _net_wm_state_fullscreen_atom != XCB_NONE) {
+			printf("Requesting full-screen window\n");
+			xcb_change_property (surf->conn,
+					     XCB_PROP_MODE_REPLACE,
+					     surf->wid,
+					     _net_wm_state_atom,
+					     XCB_ATOM_ATOM,
+					     32,
+					     1,
+					     &_net_wm_state_fullscreen_atom);
+		}
+		else {
+			fprintf(stderr, "Cannot request full-screen window\n");
+		}
+	}
 
 	xcb_atom_t wm_protocols_atom = _get_atom(surf->conn, "WM_PROTOCOLS");
 	surf->wm_delete_window_atom = _get_atom(surf->conn, "WM_DELETE_WINDOW");
@@ -96,7 +118,7 @@ struct plat_surface* plat_xcb_get_surface(void) {
 	};
 
 	printf("vkCreateXcbSurfaceKHR = %p\n", vkapi.vkCreateXcbSurfaceKHR);
-	VkResult result = vkapi.vkCreateXcbSurfaceKHR(vkapi.instance, &surf_ci, NULL, &surf->plat_surface.surface);
+	VkResult result = vkapi.vkCreateXcbSurfaceKHR(vkapi.instance, &surf_ci, NULL, &surf->plat_surface.vk_surface);
 	if (result != VK_SUCCESS) {
 		printf("vkCreateXcbSurfaceKHR failed: %i\n", result);
 		goto error;
@@ -105,6 +127,8 @@ struct plat_surface* plat_xcb_get_surface(void) {
 
 	surf->plat_surface.event_loop = plat_xcb_event_loop;
 	surf->plat_surface.destroy = plat_xcb_destroy_surface;
+	surf->plat_surface.width = -1;
+	surf->plat_surface.height = -1;
 
 	return (struct plat_surface *)surf;
 
@@ -126,10 +150,14 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 
 	struct plat_xcb_surface * xcb_surf = (struct plat_xcb_surface *)surf;
 
-	signal(SIGINT, _plat_xcb_sig_handler);
+	struct sigaction old_sa;
+	struct sigaction sa = {
+		.sa_handler = _plat_xcb_sig_handler,
+	};
+	sigaction(SIGINT, &sa, &old_sa);
 
 	xcb_generic_event_t *event;
-	while ( !_plat_xcb_signal_received && !exit_requested && (event = xcb_wait_for_event(xcb_surf->conn)) ) {
+	while ( !_plat_xcb_signal_received && !exit_requested() && (event = xcb_wait_for_event(xcb_surf->conn)) ) {
         	switch (event->response_type & ~0x80) {
 			case XCB_EXPOSE: {
 				xcb_expose_event_t *expose = (xcb_expose_event_t *)event;
@@ -141,14 +169,24 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 			case XCB_BUTTON_PRESS: {
 				xcb_button_press_event_t *bp = (xcb_button_press_event_t *)event;
 				printf("Button %i pressed\n", bp->detail);
+				if (bp->detail == 3) {
+					printf("Exitting on right click\n");
+					request_exit();
+				}
 				break;
 			}
+			case XCB_KEY_PRESS: {
+				xcb_key_press_event_t *bp = (xcb_key_press_event_t *)event;
+				printf("Button %i pressed\n", bp->detail);
+				break;
+			}
+
 			case XCB_CLIENT_MESSAGE: {
 				xcb_client_message_event_t *cm = (xcb_client_message_event_t*)event;
 				printf("Client message\n");
 				if (cm->data.data32[0] == xcb_surf->wm_delete_window_atom) {
 					printf("DELETE_WINDOW request\n");
-					exit_requested = 1;
+					request_exit();
 				}
 				break;
 			}
@@ -158,25 +196,22 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
                 }
 		free (event);
         }
-	printf("Finishing platform event loop (exit_requested=%i, signal_received=%i).\n", exit_requested, _plat_xcb_signal_received);
+	printf("Finishing platform event loop (exit_requested=%i, signal_received=%i).\n", exit_requested(), _plat_xcb_signal_received);
 	if (_plat_xcb_signal_received) {
 		printf("Signal %i received\n", _plat_xcb_signal_received);
 	}
-	exit_requested = 1;
-	
-	signal(SIGINT, SIG_DFL);
+	request_exit();
+
+	sigaction(SIGINT, &old_sa, NULL);
 }
 
 void plat_xcb_destroy_surface(struct plat_surface *surf) {
-	
+
 	struct plat_xcb_surface * xcb_surf = (struct plat_xcb_surface *)surf;
 
-	if (surf->surface) {
-		vkDestroySurfaceKHR(vkapi.instance, surf->surface, NULL);
-	}
+	finalize_surface(surf);
 
-	if (surf) {
-		xcb_disconnect(xcb_surf->conn);
-		free(surf);
-	}
+	xcb_disconnect(xcb_surf->conn);
+
+	free(surf);
 }

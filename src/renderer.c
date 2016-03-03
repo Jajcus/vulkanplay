@@ -6,20 +6,15 @@
 #include <alloca.h>
 #include <pthread.h>
 #include <assert.h>
+#include <sys/time.h>
 
 #include "linmath.h"
 #include "printmath.h"
 
 #include "vkapi.h"
-#include "platform/plat.h"
-
-#ifdef HAVE_XCB
-#include "platform/plat_xcb.h"
-#endif
-
-#ifdef HAVE_WAYLAND
-#include "platform/plat_wl.h"
-#endif
+#include "renderer.h"
+#include "surface.h"
+#include "main.h"
 
 struct framebuffer {
 
@@ -32,11 +27,26 @@ struct framebuffer {
 	VkQueryPool query_pool;
 };
 
-struct render_ctx {
-	VkSurfaceKHR surface;
+struct renderer {
+	struct plat_surface * surface;
+
+	VkSwapchainKHR swapchain;
+	VkImage* swapchain_images;
+	uint32_t swapchain_image_count;
+
+	VkSemaphore image_acquired_sem, rendering_complete_sem;
+
+	VkExtent2D fb_extent;
+	uint32_t fb_count;
+	struct framebuffer * framebuffers;
+
 	VkRenderPass render_pass;
 	VkDescriptorPool descriptor_pool;
-} render_ctx;
+
+	pthread_t thread;
+	pthread_mutex_t mutex;
+	int stop; /* request to stop the rendering thread */
+};
 
 /* tetrahedron vertices */
 #define V1 { 1.0f,  1.0f,  1.0f, 1.0f}
@@ -88,7 +98,7 @@ struct uniform_buffer {
 	mat4x4 normal_matrix;
 	vec4 light_pos;
 };
-	
+
 struct model {
 	mat4x4 p_matrix;
 	mat4x4 v_matrix;
@@ -136,12 +146,13 @@ void normal(vec4 result, const vec4 a, const vec4 b, const vec4 c) {
 	result[3] = 0;
 }
 
-void init_model(struct framebuffer * fb) {
+void init_model(struct renderer * renderer, uint32_t image_index) {
 
 	uint32_t i;
-	printf("i"); fflush(stdout);	
 
-	vkapi.vkResetDescriptorPool(vkapi.device, render_ctx.descriptor_pool, 0);
+	struct framebuffer * fb = &renderer->framebuffers[image_index];
+
+	vkapi.vkResetDescriptorPool(vkapi.device, renderer->descriptor_pool, 0);
 
 	VkDescriptorSetLayoutBinding dsl_b[1] = {
 		{
@@ -165,7 +176,7 @@ void init_model(struct framebuffer * fb) {
 		.setLayoutCount = 1,
 		.pSetLayouts = &model.set_layout,
 	};
-	
+
 	vkapi.vkCreatePipelineLayout(vkapi.device, &pipeline_layout_ci, NULL, &model.pipeline_layout);
 
 	VkShaderModuleCreateInfo vs_module_ci = {
@@ -173,7 +184,7 @@ void init_model(struct framebuffer * fb) {
 		.codeSize = main_vert_spv_len,
 		.pCode = (uint32_t *)main_vert_spv,
 	};
-	
+
 	vkapi.vkCreateShaderModule(vkapi.device, &vs_module_ci, NULL, &model.vs_module);
 
 	VkShaderModuleCreateInfo fs_module_ci = {
@@ -319,11 +330,11 @@ void init_model(struct framebuffer * fb) {
 		.pDynamicState = NULL,
 
 		.layout = model.pipeline_layout,
-		.renderPass = render_ctx.render_pass,
+		.renderPass = renderer->render_pass,
 		.subpass = 0,
 	};
 
-	
+
 	vkapi.vkCreateGraphicsPipelines(vkapi.device, (VkPipelineCache)VK_NULL_HANDLE, 1, &pipeline_ci, NULL, &model.pipeline);
 
 	// compute normals
@@ -339,11 +350,6 @@ void init_model(struct framebuffer * fb) {
 		memcpy(normals[i + 1], normals[i], sizeof(vec4));
 		memcpy(normals[i + 2], normals[i], sizeof(vec4));
 	}
-	print_vec4("normals[0]", normals[0]);
-	print_vec4("normals[1]", normals[1]);
-	print_vec4("normals[2]", normals[2]);
-	print_vec4("normals[3]", normals[3]);
-	print_vec4("normals[4]", normals[4]);
 
 	model.vertex_offset = sizeof(struct uniform_buffer);
 	model.normal_offset = model.vertex_offset + sizeof(tetrahedron_vertices);
@@ -387,7 +393,7 @@ void init_model(struct framebuffer * fb) {
 
 	VkDescriptorSetAllocateInfo ds_ai = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-		.descriptorPool = render_ctx.descriptor_pool,
+		.descriptorPool = renderer->descriptor_pool,
 		.descriptorSetCount = 1,
 		.pSetLayouts = &model.set_layout,
 	};
@@ -422,16 +428,14 @@ void init_model(struct framebuffer * fb) {
 	};
 
 	vkapi.vkCreateCommandPool(vkapi.device, &cmd_pool_ci, NULL, &model.command_pool);
-
-	printf("I"); fflush(stdout);	
 };
 
-void render_model(struct framebuffer * fb, VkSemaphore wait_sem, VkSemaphore signal_sem) {
+void render_model(struct renderer * renderer, uint32_t image_index) {
 
 	VkResult result;
 	struct uniform_buffer uniform_buffer;
+	struct framebuffer * fb = &renderer->framebuffers[image_index];
 
-	printf("r"); fflush(stdout);	
 	vec3 origin = {0, 0, 0};
 	vec3 up = {0.0f, -1.0f, 0.0};
 	vec3 eye_base = {-0.5f, 1.0f, 6.0f};
@@ -439,66 +443,32 @@ void render_model(struct framebuffer * fb, VkSemaphore wait_sem, VkSemaphore sig
 	vec4 light_pos = { 2.0f,  2.0f, 10.0f, 1.0f };
 
 	mat4x4_perspective(model.p_matrix, (float)degreesToRadians(45.0f), 1.0f, 1.0f, 100.0f);
-	//print_mat4x4("p_matrix:", model.p_matrix);
 
 	vec4 eye;
 	mat4x4 identity, rot1, rot2;
 	mat4x4_identity(identity);
-	
-	printf("angle: %i, %i\n", view_angle_y, view_angle_x);	
+
 	mat4x4_rotate_Y(rot1, identity, (float)degreesToRadians((float)view_angle_y));
 	mat4x4_rotate_X(rot2, rot1, (float)degreesToRadians((float)view_angle_y));
-	print_mat4x4("rot:", rot2);
 
 	mat4x4_mul_vec4(eye, rot2, eye_base);
-	print_vec4("eye:", eye);
 
 	mat4x4_look_at(model.v_matrix, eye, origin, up);
-	//print_mat4x4("v_matrix:", model.v_matrix);
 
 	mat4x4_identity(model.m_matrix);
 
 	mat4x4_mul(uniform_buffer.mv_matrix, model.v_matrix, model.m_matrix);
-	//print_mat4x4("base_mv_matrix:", base_mv_matrix);
-
-	
-	/*vec4 v, vv;
-	mat4x4_mul_vec4(v, mv_matrix, V1v);
-	vec4_scale(vv, v, 1/v[3]);
-	print_vec4("V1:", vv);
-	mat4x4_mul_vec4(v, mv_matrix, V2v);
-	vec4_scale(vv, v, 1/v[3]);
-	print_vec4("V2:", vv);
-	mat4x4_mul_vec4(v, mv_matrix, V3v);
-	vec4_scale(vv, v, 1/v[3]);
-	print_vec4("V3:", vv); */
 
 	view_angle_y += 1;
 	view_angle_y = view_angle_y % 360;
 	view_angle_x += 3;
 	view_angle_x = view_angle_x % 360;
-	
+
 	mat4x4_mul(uniform_buffer.mvp_matrix, model.p_matrix, uniform_buffer.mv_matrix);
 	memcpy(uniform_buffer.light_pos, light_pos, sizeof(vec4));
-	//mat4x4_mul_vec4(uniform_buffer.light_pos, uniform_buffer.mvp_matrix, light_pos);
-	// normal_matrix = transpose(inverse(mv_matrix));
 	mat4x4 imv_matrix;
 	mat4x4_invert(imv_matrix, uniform_buffer.mv_matrix);
 	mat4x4_transpose(uniform_buffer.normal_matrix, imv_matrix);
-
-	print_mat4x4("normal_matrix:", uniform_buffer.mvp_matrix);
-
-	/*
-	mat4x4_mul_vec4(v, uniform_buffer.mvp_matrix, V1v);
-	vec4_scale(vv, v, 1/v[3]);
-	print_vec4("V1:", vv);
-	mat4x4_mul_vec4(v, uniform_buffer.mvp_matrix, V2v);
-	vec4_scale(vv, v, 1/v[3]);
-	print_vec4("V2:", vv);
-	mat4x4_mul_vec4(v, uniform_buffer.mvp_matrix, V3v);
-	vec4_scale(vv, v, 1/v[3]);
-	print_vec4("V3:", vv);
-	*/
 
 	memcpy(model.mapped_memory, &uniform_buffer, sizeof(uniform_buffer));
 
@@ -532,7 +502,7 @@ void render_model(struct framebuffer * fb, VkSemaphore wait_sem, VkSemaphore sig
 
 	VkRenderPassBeginInfo render_pass_bi = {
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-		.renderPass = render_ctx.render_pass,
+		.renderPass = renderer->render_pass,
 		.framebuffer = fb->framebuffer,
 		.renderArea = { { 0, 0 }, { fb->width, fb->height } },
 		.clearValueCount = 1,
@@ -546,12 +516,12 @@ void render_model(struct framebuffer * fb, VkSemaphore wait_sem, VkSemaphore sig
 		{
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &wait_sem,
+		.pWaitSemaphores = &renderer->image_acquired_sem,
 		.pWaitDstStageMask = &dst_s_mask,
 		.commandBufferCount = 1,
 		.pCommandBuffers = &cmd_buffer,
 		.signalSemaphoreCount = 1,
-		.pSignalSemaphores = &signal_sem,
+		.pSignalSemaphores = &renderer->rendering_complete_sem,
 		},
 	};
 
@@ -567,7 +537,7 @@ void render_model(struct framebuffer * fb, VkSemaphore wait_sem, VkSemaphore sig
 
 	vkapi.vkCmdDraw(cmd_buffer, 3 * tetrahedron_triangle_count, 1, 0, 0);
 	vkapi.vkCmdEndRenderPass(cmd_buffer);
-	
+
 	if (fb->query_pool) {
 		vkapi.vkCmdEndQuery(cmd_buffer, fb->query_pool, 0);
 	}
@@ -578,13 +548,10 @@ void render_model(struct framebuffer * fb, VkSemaphore wait_sem, VkSemaphore sig
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkQueueSubmit failed: %i\n", result);
 	}
-
-	printf("R"); fflush(stdout);	
 };
 
-void destroy_model(void) {
+void destroy_model(struct renderer * renderer) {
 
-	printf("d"); fflush(stdout);	
 	if (model.command_pool) vkapi.vkDestroyCommandPool(vkapi.device, model.command_pool, NULL);
 	model.command_pool = NULL;
 	if (model.buffer) vkapi.vkDestroyBuffer(vkapi.device, model.buffer, NULL);
@@ -605,16 +572,15 @@ void destroy_model(void) {
 	model.pipeline_layout = NULL;
 	if (model.set_layout) vkapi.vkDestroyDescriptorSetLayout(vkapi.device, model.set_layout, NULL);
 	model.set_layout = NULL;
-	printf("D"); fflush(stdout);	
 };
 
-VkResult render_init(void) {
+VkResult render_init(struct renderer * renderer) {
 
 	VkResult result;
 
 	VkAttachmentDescription attachments[] = {
 		{
-			.format = vkapi.s_format,
+			.format = renderer->surface->s_format,
 			.samples = 1,
 			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -659,7 +625,7 @@ VkResult render_init(void) {
 		.pSubpasses = subpasses,
 	};
 
-	result = vkapi.vkCreateRenderPass(vkapi.device, &render_pass_ci, NULL, &render_ctx.render_pass);
+	result = vkapi.vkCreateRenderPass(vkapi.device, &render_pass_ci, NULL, &renderer->render_pass);
 	if (result != VK_SUCCESS) {
 		printf("vkCreateRenderPass failed: %i", result);
 		goto error;
@@ -678,98 +644,104 @@ VkResult render_init(void) {
 		.poolSizeCount = 1,
 		.pPoolSizes = dpool_sizes,
 	};
-	
-	result = vkapi.vkCreateDescriptorPool(vkapi.device, &dpool_ci, NULL, &render_ctx.descriptor_pool);
+
+	result = vkapi.vkCreateDescriptorPool(vkapi.device, &dpool_ci, NULL, &renderer->descriptor_pool);
 	if (result != VK_SUCCESS) {
 		printf("vkCreateDescriptorPool failed: %i", result);
 		goto error;
 	}
 	return VK_SUCCESS;
 error:
-	if (render_ctx.descriptor_pool) vkapi.vkDestroyDescriptorPool(vkapi.device, render_ctx.descriptor_pool, NULL);
-	if (render_ctx.render_pass) vkapi.vkDestroyRenderPass(vkapi.device, render_ctx.render_pass, NULL);
+	if (renderer->descriptor_pool) vkapi.vkDestroyDescriptorPool(vkapi.device, renderer->descriptor_pool, NULL);
+	if (renderer->render_pass) vkapi.vkDestroyRenderPass(vkapi.device, renderer->render_pass, NULL);
 
 	return VK_ERROR_INITIALIZATION_FAILED;
 }
 
-void render_deinit(void) {
-	
-	if (render_ctx.descriptor_pool) vkapi.vkDestroyDescriptorPool(vkapi.device, render_ctx.descriptor_pool, NULL);
-	if (render_ctx.render_pass) vkapi.vkDestroyRenderPass(vkapi.device, render_ctx.render_pass, NULL);
+void render_deinit(struct renderer * renderer) {
+
+	if (renderer->descriptor_pool) vkapi.vkDestroyDescriptorPool(vkapi.device, renderer->descriptor_pool, NULL);
+	if (renderer->render_pass) vkapi.vkDestroyRenderPass(vkapi.device, renderer->render_pass, NULL);
 }
 
-uint32_t create_swapchain(VkSwapchainKHR *swapchain_p, VkExtent2D *output_extent_p, VkImage** swapchain_images_p) {
+static uint32_t create_swapchain(struct renderer *renderer) {
 
 	VkResult result;
 	int i;
 	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 	VkExtent2D extent = {};
 	VkImage* swapchain_images = NULL;
+	VkSurfaceCapabilitiesKHR s_caps;
+
+	struct plat_surface * surface = renderer->surface;
 
 	// get current surface size
-	result = vkapi.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkapi.physical_device, vkapi.surface, &vkapi.s_caps);
+	result = vkapi.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkapi.physical_device, surface->vk_surface, &s_caps);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed: %i\n", result);
 		goto error;
 	}
 
-        if (vkapi.s_caps.currentExtent.width == -1) {
-            extent.width = 500;
-            extent.height = 500;
+        if (s_caps.currentExtent.width == -1) {
+            extent.width = surface->width;
+            extent.height = surface->height;
 
-            if (extent.width < vkapi.s_caps.minImageExtent.width)
-                extent.width = vkapi.s_caps.minImageExtent.width;
-            else if (extent.width > vkapi.s_caps.maxImageExtent.width)
-                extent.width = vkapi.s_caps.maxImageExtent.width;
+            if (extent.width < s_caps.minImageExtent.width)
+                extent.width = s_caps.minImageExtent.width;
+            else if (extent.width > s_caps.maxImageExtent.width)
+                extent.width = s_caps.maxImageExtent.width;
 
-            if (extent.height < vkapi.s_caps.minImageExtent.height)
-                extent.height = vkapi.s_caps.minImageExtent.height;
-            else if (extent.height > vkapi.s_caps.maxImageExtent.height)
-                extent.height = vkapi.s_caps.maxImageExtent.height;
+            if (extent.height < s_caps.minImageExtent.height)
+                extent.height = s_caps.minImageExtent.height;
+            else if (extent.height > s_caps.maxImageExtent.height)
+                extent.height = s_caps.maxImageExtent.height;
         }
         else {
-            extent = vkapi.s_caps.currentExtent;
+            extent = s_caps.currentExtent;
         }
 
-	VkPresentModeKHR mode = VK_PRESENT_MODE_FIFO_KHR;
-        for (i = 0; i < vkapi.s_modes_count; i++) {
-		if (vkapi.s_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-			mode = VK_PRESENT_MODE_MAILBOX_KHR;
-			break;
+	VkPresentModeKHR mode = options.pres_mode;
+	if (mode == -1) {
+		mode = VK_PRESENT_MODE_FIFO_KHR;
+		for (i = 0; i < surface->s_modes_count; i++) {
+			if (surface->s_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
+				mode = VK_PRESENT_MODE_MAILBOX_KHR;
+				break;
+			}
 		}
 	}
 	printf("Using present mode: %i\n", mode);
 
 	VkSwapchainCreateInfoKHR swapchain_ci = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-		.surface = vkapi.surface,
-		.minImageCount = vkapi.s_caps.minImageCount + 2,
-		.imageFormat = vkapi.s_format,
-		.imageColorSpace = vkapi.s_colorspace,
+		.surface = surface->vk_surface,
+		.minImageCount = s_caps.minImageCount + 2,
+		.imageFormat = surface->s_format,
+		.imageColorSpace = surface->s_colorspace,
 		.imageExtent = extent,
 		.imageArrayLayers = 1,
 		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-		.preTransform = vkapi.s_caps.currentTransform,
+		.preTransform = s_caps.currentTransform,
 		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		//.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
 		.presentMode = mode,
-		.oldSwapchain = *swapchain_p,
+		.oldSwapchain = renderer->swapchain,
 	};
 
 	if (vkapi.g_queue_family != vkapi.p_queue_family)
 		swapchain_ci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-	
+
 	result = vkapi.vkCreateSwapchainKHR(vkapi.device, &swapchain_ci, NULL, &swapchain);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkCreateSwapchainKHR failed: %i\n", result);
 		goto error;
 	}
-	
-	if (*swapchain_p) vkapi.vkDestroySwapchainKHR(vkapi.device, *swapchain_p, NULL);
-	*swapchain_p = VK_NULL_HANDLE;
-	if (*swapchain_images_p) free(*swapchain_images_p);
-	*swapchain_images_p = NULL;
+
+	if (renderer->swapchain) vkapi.vkDestroySwapchainKHR(vkapi.device, renderer->swapchain, NULL);
+	renderer->swapchain = VK_NULL_HANDLE;
+	if (renderer->swapchain_images) free(renderer->swapchain_images);
+	renderer->swapchain_images = NULL;
 
 	uint32_t image_count = 0;
 	vkapi.vkGetSwapchainImagesKHR(vkapi.device, swapchain, &image_count, NULL);
@@ -779,24 +751,33 @@ uint32_t create_swapchain(VkSwapchainKHR *swapchain_p, VkExtent2D *output_extent
 	swapchain_images = calloc(image_count, sizeof(VkImage));
 	vkapi.vkGetSwapchainImagesKHR(vkapi.device, swapchain, &image_count, swapchain_images);
 
-	*swapchain_images_p = swapchain_images;
-	*output_extent_p = extent;
-	*swapchain_p = swapchain;
-	
+	renderer->swapchain_images = swapchain_images;
+	renderer->fb_extent = extent;
+	renderer->swapchain = swapchain;
+	renderer->swapchain_image_count = image_count;
+
 	return image_count;
 error:
 	if (swapchain) vkapi.vkDestroySwapchainKHR(vkapi.device, swapchain, NULL);
-	if (swapchain_p && *swapchain_p) vkapi.vkDestroySwapchainKHR(vkapi.device, *swapchain_p, NULL);
-	if (swapchain_images_p && *swapchain_images_p) free(*swapchain_images_p);
+	if (renderer->swapchain) {
+		vkapi.vkDestroySwapchainKHR(vkapi.device, renderer->swapchain, NULL);
+		renderer->swapchain = VK_NULL_HANDLE;
+	}
+	if (swapchain_images) free(swapchain_images);
+	if (renderer->swapchain_images) {
+		free(renderer->swapchain_images);
+		renderer->swapchain_images = NULL;
+		renderer->swapchain_image_count = 0;
+	}
 	return 0;
 }
 
-void destroy_framebuffers(uint32_t count, struct framebuffer * framebuffers) {
+static void destroy_framebuffers(struct renderer * renderer) {
 
 	uint32_t i;
-
+	struct framebuffer * framebuffers = renderer->framebuffers;
 	if (framebuffers) {
-		for(i = 0; i < count; i++) {
+		for(i = 0; i < renderer->fb_count; i++) {
 			if (framebuffers[i].framebuffer) {
 				vkapi.vkDestroyFramebuffer(vkapi.device, framebuffers[i].framebuffer, NULL);
 			}
@@ -809,18 +790,23 @@ void destroy_framebuffers(uint32_t count, struct framebuffer * framebuffers) {
 		}
 		free(framebuffers);
 	}
+	renderer->framebuffers = NULL;
 };
 
-struct framebuffer * create_framebuffers(uint32_t count, VkImage* images, VkExtent2D extent) {
+static struct framebuffer * create_framebuffers(struct renderer * renderer) {
 
 	uint32_t i;
 	VkResult result;
 
-	struct framebuffer * framebuffers = calloc(count, sizeof(struct framebuffer));
+	struct framebuffer * framebuffers = calloc(renderer->swapchain_image_count, sizeof(struct framebuffer));
+	struct plat_surface * surface = renderer->surface;
+
+	renderer->framebuffers = framebuffers;
+
 	struct VkImageViewCreateInfo iv_ci = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = vkapi.s_format,
+		.format = surface->s_format,
 		.components = {},
 		.subresourceRange = {
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -830,10 +816,10 @@ struct framebuffer * create_framebuffers(uint32_t count, VkImage* images, VkExte
 	};
 	struct VkFramebufferCreateInfo fb_ci = {
 		.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-		.renderPass = render_ctx.render_pass,
+		.renderPass = renderer->render_pass,
 		.attachmentCount = 1,
-		.width = extent.width,
-		.height = extent.height,
+		.width = renderer->fb_extent.width,
+		.height = renderer->fb_extent.height,
 		.layers = 1,
 	};
 	VkQueryPoolCreateInfo qp_ci = {
@@ -843,12 +829,12 @@ struct framebuffer * create_framebuffers(uint32_t count, VkImage* images, VkExte
 		.pipelineStatistics = VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_VERTICES_BIT
 				| VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_PRIMITIVES_BIT
 				| VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT
-				| VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT 
+				| VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT
 				| VK_QUERY_PIPELINE_STATISTIC_CLIPPING_PRIMITIVES_BIT
 				| VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT,
 	};
-	for(i = 0; i < count; i++) {
-		iv_ci.image = images[i];
+	for(i = 0; i < renderer->swapchain_image_count; i++) {
+		iv_ci.image = renderer->swapchain_images[i];
 		result = vkapi.vkCreateImageView(vkapi.device, &iv_ci, NULL, &framebuffers[i].view);
 		if (result != VK_SUCCESS) {
 			fprintf(stderr, "vkCreateImageView failed: %i\n", result);
@@ -860,10 +846,10 @@ struct framebuffer * create_framebuffers(uint32_t count, VkImage* images, VkExte
 			fprintf(stderr, "vkCreateFramebuffer failed: %i\n", result);
 			goto error;
 		}
-		framebuffers[i].width = extent.width;
-		framebuffers[i].height = extent.height;
+		framebuffers[i].width = renderer->fb_extent.width;
+		framebuffers[i].height = renderer->fb_extent.height;
 		printf("framebuffers[%li] width: %llu\n", (long)i, (long long)framebuffers[i].width);
-		if (vkapi.device_features.pipelineStatisticsQuery) {
+		if (options.stats) {
 			result = vkapi.vkCreateQueryPool(vkapi.device, &qp_ci, NULL, &framebuffers[i].query_pool);
 			if (result != VK_SUCCESS) framebuffers[i].query_pool = VK_NULL_HANDLE;
 		}
@@ -871,53 +857,64 @@ struct framebuffer * create_framebuffers(uint32_t count, VkImage* images, VkExte
 	}
 	return framebuffers;
 error:
-	destroy_framebuffers(count, framebuffers);
+	destroy_framebuffers(renderer);
 	return NULL;
 }
 
-void * render_loop(void * argument) {
+void * render_loop(void * arg) {
+
+	struct renderer * renderer = (struct renderer *) arg;
 
 	VkResult result;
-	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-	VkExtent2D output_extent = {};
-	uint32_t image_count = 0;
-	VkImage* swapchain_images = NULL;
 	uint32_t image_index;
-	struct framebuffer * framebuffers = NULL;
-	VkSemaphore image_acquired_sem, rendering_complete_sem;
 
 	const VkSemaphoreCreateInfo sem_ci = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 	};
-	result = vkapi.vkCreateSemaphore(vkapi.device, &sem_ci, NULL, &image_acquired_sem);
+
+	result = vkapi.vkCreateSemaphore(vkapi.device, &sem_ci, NULL, &renderer->image_acquired_sem);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkCreateSemaphore failed: %i\n", result);
 		goto finish;
 	}
-	result = vkapi.vkCreateSemaphore(vkapi.device, &sem_ci, NULL, &rendering_complete_sem);
+	result = vkapi.vkCreateSemaphore(vkapi.device, &sem_ci, NULL, &renderer->rendering_complete_sem);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkCreateSemaphore failed: %i\n", result);
 		goto finish;
 	}
 	printf("image_acquired_sem = %lx, rendering_complete_sem = %lx\n",
-			(long)image_acquired_sem, (long)rendering_complete_sem);
+			(long)renderer->image_acquired_sem, (long)renderer->rendering_complete_sem);
 
-	result = render_init();
+	result = render_init(renderer);
 	if (result != VK_SUCCESS) {
 		goto finish;
 	}
-	while(!exit_requested) {
-		image_count = create_swapchain(&swapchain, &output_extent, &swapchain_images);
-		if (image_count == 0) goto finish;
 
-		framebuffers = create_framebuffers(image_count, swapchain_images, output_extent);
-		if (!framebuffers) goto finish;
-		
-		while(!exit_requested) {
+	int frames = 0;
+
+	struct timeval last_tv, tv;
+	gettimeofday(&last_tv, NULL);
+
+	while(!exit_requested()) {
+		pthread_mutex_lock(&renderer->mutex);
+		int stop = renderer->stop;
+		pthread_mutex_unlock(&renderer->mutex);
+		if (stop) break;
+
+		if (!create_swapchain(renderer)) goto finish;
+
+		if (!create_framebuffers(renderer)) goto finish;
+
+		while(!exit_requested()) {
+			pthread_mutex_lock(&renderer->mutex);
+			int stop = renderer->stop;
+			pthread_mutex_unlock(&renderer->mutex);
+			if (stop) break;
+
 			result = vkapi.vkAcquireNextImageKHR(vkapi.device,
-							     swapchain,
+							     renderer->swapchain,
 							     50000000,
-							     image_acquired_sem,
+							     renderer->image_acquired_sem,
 							     VK_NULL_HANDLE,
 							     &image_index);
 			if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -934,15 +931,15 @@ void * render_loop(void * argument) {
 				fprintf(stderr, "vkAcquireNextImageKHR failed: %i\n", result);
 				goto finish;
 			}
-			init_model(&framebuffers[image_index]);
-			render_model(&framebuffers[image_index], image_acquired_sem, rendering_complete_sem);
+			init_model(renderer, image_index);
+			render_model(renderer, image_index);
 			VkPresentInfoKHR pi = {
 				.sType =  VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 				.swapchainCount = 1,
-				.pSwapchains = &swapchain,
+				.pSwapchains = &renderer->swapchain,
 				.pImageIndices = &image_index,
 				.waitSemaphoreCount = 1,
-				.pWaitSemaphores = &rendering_complete_sem,
+				.pWaitSemaphores = &renderer->rendering_complete_sem,
 			};
 			result = vkapi.vkQueuePresentKHR(vkapi.p_queue, &pi);
 			if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -958,7 +955,7 @@ void * render_loop(void * argument) {
 				goto finish;
 			}
 			vkapi.vkDeviceWaitIdle(vkapi.device);
-			VkQueryPool qp = framebuffers[image_index].query_pool;
+			VkQueryPool qp = renderer->framebuffers[image_index].query_pool;
 			if (qp) {
 				uint64_t data[6];
 				vkapi.vkGetQueryPoolResults(vkapi.device, qp, 0, 1, sizeof(data), data, sizeof(data),
@@ -970,71 +967,55 @@ void * render_loop(void * argument) {
 				printf("clipping primitives:        %5lli\n", (long long) data[4]);
 				printf("fragment shader invocations:%5lli\n", (long long) data[5]);
 			}
-
-			destroy_model();
-			usleep(100000);
+			destroy_model(renderer);
+			frames++;
+			gettimeofday(&tv, NULL);
+			long seconds = tv.tv_sec - last_tv.tv_sec;
+			if (seconds > 10 || frames > 50 && seconds > 1) {
+				double timedelta = (double)tv.tv_sec - last_tv.tv_sec;
+				timedelta += (double)((int32_t)tv.tv_usec - (int32_t)last_tv.tv_usec) / 1000000.0;
+				printf("%5i frames in %5.2f s - %5.1f FPS\n", frames, timedelta, (double)frames / timedelta);
+				last_tv = tv;
+				frames = 0;
+			}
 		}
 	}
 	fprintf(stderr, "render_loop finished normally (exit_requested=%i)\n", exit_requested);
 finish:
 	fprintf(stderr, "render thread cleaning up...\n");
 	vkapi.vkDeviceWaitIdle(vkapi.device);
-	destroy_model();
-	render_deinit();
-	vkapi.vkDestroySemaphore(vkapi.device, image_acquired_sem, NULL);
-	vkapi.vkDestroySemaphore(vkapi.device, rendering_complete_sem, NULL);
-	if (framebuffers) destroy_framebuffers(image_count, framebuffers);
-	if (swapchain) vkapi.vkDestroySwapchainKHR(vkapi.device, swapchain, NULL);
-	if (swapchain_images) free(swapchain_images);
-	exit_requested = 1;
+	destroy_model(renderer);
+	render_deinit(renderer);
+	vkapi.vkDestroySemaphore(vkapi.device, renderer->image_acquired_sem, NULL);
+	vkapi.vkDestroySemaphore(vkapi.device, renderer->rendering_complete_sem, NULL);
+	if (renderer->framebuffers) destroy_framebuffers(renderer);
+	if (renderer->swapchain) vkapi.vkDestroySwapchainKHR(vkapi.device, renderer->swapchain, NULL);
+	if (renderer->swapchain_images) free(renderer->swapchain_images);
+	request_exit();
 	return NULL;
 }
 
-int main(int argc, char **argv) {
+struct renderer * start_renderer(struct plat_surface * surface) {
 
-	VkResult result;
-	int exit_code = 2;
-	struct plat_surface * surf = NULL;
+	struct renderer * renderer = calloc(1, sizeof(struct renderer));
 
-	result = vkapi_init_instance("vulkan play");
-	if (result != VK_SUCCESS) {
-		goto finish;
-	}
+	renderer->surface = surface;
 
-#ifdef HAVE_XCB
-	if (!surf) surf = plat_xcb_get_surface();
-#endif
-#ifdef HAVE_WAYLAND
-	if (!surf) surf = plat_wl_get_surface();
-#endif
+	pthread_mutex_init(&renderer->mutex, NULL);
+	pthread_create(&renderer->thread, NULL, render_loop, renderer);
 
-	if (!surf) {
-		printf("Failed to create presentation surface.\n");
-		goto finish;
-	}
+	return renderer;
+}
 
-	result = vkapi_init_device(surf->surface);
-	if (result != VK_SUCCESS) {
-		goto finish;
-	}
+void stop_renderer(struct renderer * renderer) {
 
-	pthread_t render_thread;
-	pthread_create(&render_thread, NULL, render_loop, NULL);
+	if (!renderer) return;
 
-	surf->event_loop(surf);
+	pthread_mutex_lock(&renderer->mutex);
+	renderer->stop = 1;
+	pthread_mutex_unlock(&renderer->mutex);
 
-	pthread_join(render_thread, NULL);
-	
-	exit_code = 0;
+	pthread_join(renderer->thread, NULL);
 
-finish:
-	if (vkapi.device) vkapi.vkDeviceWaitIdle(vkapi.device);
-	
-	vkapi_finish_device();
-
-	if (surf) surf->destroy(surf);
-
-	vkapi_finish();
-
-	return exit_code;
+	free(renderer);
 }

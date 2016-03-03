@@ -1,4 +1,6 @@
 #include "vkapi.h"
+#include "surface.h"
+#include "main.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -69,7 +71,7 @@ int vkapi_init_instance(const char * app_name) {
 		printf("vkCreateInstance failed: %i\n", result);
 		goto error;
 	}
-	
+
 	GET_INST_PROC(vkCreateDevice);
 	GET_INST_PROC(vkDestroyInstance);
 	GET_INST_PROC(vkDestroySurfaceKHR);
@@ -88,7 +90,7 @@ int vkapi_init_instance(const char * app_name) {
 #ifdef HAVE_WAYLAND
 	GET_INST_PROC(vkCreateWaylandSurfaceKHR);
 #endif
-	
+
 	return VK_SUCCESS;
 error:
 	if (vkapi.instance) vkapi.vkDestroyInstance(vkapi.instance, NULL);
@@ -104,13 +106,11 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkAllocateMemory);
 	GET_DEV_PROC(vkBeginCommandBuffer);
 	GET_DEV_PROC(vkBindBufferMemory);
-	//GET_DEV_PROC(vkCmdBeginQuery);
 	GET_DEV_PROC(vkCmdBeginRenderPass);
 	GET_DEV_PROC(vkCmdBindDescriptorSets);
 	GET_DEV_PROC(vkCmdBindPipeline);
 	GET_DEV_PROC(vkCmdBindVertexBuffers);
 	GET_DEV_PROC(vkCmdDraw);
-	//GET_DEV_PROC(vkCmdEndQuery);
 	GET_DEV_PROC(vkCmdEndRenderPass);
 	GET_DEV_PROC(vkCmdResetQueryPool);
 	GET_DEV_PROC(vkCreateBuffer);
@@ -155,17 +155,24 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkUnmapMemory);
 	GET_DEV_PROC(vkUpdateDescriptorSets);
 
+	if (options.stats) {
+		GET_DEV_PROC(vkCmdBeginQuery);
+		GET_DEV_PROC(vkCmdEndQuery);
+	}
+
 	return VK_SUCCESS;
 error:
 	return VK_ERROR_INITIALIZATION_FAILED;
 }
 
-int vkapi_init_device(VkSurfaceKHR surface) {
+int vkapi_init_device(struct plat_surface * surface) {
 
 	VkResult result;
 	uint32_t i, j;
 	uint32_t pd_count = 0;
 	result = vkapi.vkEnumeratePhysicalDevices(vkapi.instance, &pd_count, NULL);
+
+	VkSurfaceKHR vk_surface = surface->vk_surface;
 
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkEnumeratePhysicalDevices failed: %i\n", result);
@@ -218,9 +225,9 @@ int vkapi_init_device(VkSurfaceKHR surface) {
 					selected_g_qf = j;
 					printf("        good for graphics\n");
 				}
-				if (surface) {
+				if (vk_surface) {
 					VkBool32 supported;
-					result = vkapi.vkGetPhysicalDeviceSurfaceSupportKHR(vkapi.physical_devices[i], j, surface, &supported);
+					result = vkapi.vkGetPhysicalDeviceSurfaceSupportKHR(vkapi.physical_devices[i], j, vk_surface, &supported);
 					if (result != VK_SUCCESS) {
 						printf("vkGetPhysicalDeviceSurfaceSupportKHR failed");
 						continue;
@@ -232,7 +239,7 @@ int vkapi_init_device(VkSurfaceKHR surface) {
 				}
 			}
 		}
-		if (selected_dev == UINT32_MAX && selected_g_qf != UINT32_MAX && (!surface || selected_p_qf != UINT32_MAX)) {
+		if (selected_dev == UINT32_MAX && selected_g_qf != UINT32_MAX && (!vk_surface || selected_p_qf != UINT32_MAX)) {
 			selected_dev = i;
 			vkapi.device_properties = dev_props;
 			printf("    you are the chosen one!\n");
@@ -244,10 +251,9 @@ int vkapi_init_device(VkSurfaceKHR surface) {
 		fprintf(stderr, "No suitable physical device found\n");
 		goto error;
 	}
-	else if (surface) {
+	else if (vk_surface) {
 		fprintf(stderr, "Using device #%u, queue #%u for graphics and queue #%u for presentation\n",
 				selected_dev, selected_g_qf, selected_p_qf);
-		vkapi.surface = surface;
 	}
 	else {
 		fprintf(stderr, "Using device #%u, queue #%u for graphics\n",
@@ -256,11 +262,15 @@ int vkapi_init_device(VkSurfaceKHR surface) {
 
 	vkapi.vkGetPhysicalDeviceFeatures(vkapi.physical_devices[selected_dev], &vkapi.device_features);
 
+	if (options.stats && !vkapi.device_features.pipelineStatisticsQuery) {
+		fprintf(stderr, "Statistics queries not available on this device!\n");
+		goto error;
+	}
 	vkapi.vkGetPhysicalDeviceMemoryProperties(vkapi.physical_devices[selected_dev], &vkapi.memory_properties);
 
 	vkapi.g_queue_family = selected_p_qf;
 	vkapi.p_queue_family = selected_p_qf;
-	
+
 	float q_priority = 0.0;
 	struct VkDeviceQueueCreateInfo queue_ci[2] = {
 		{
@@ -279,13 +289,13 @@ int vkapi_init_device(VkSurfaceKHR surface) {
 
 	/* require no optional features */
 	VkPhysicalDeviceFeatures features = {};
-	
+
 	uint32_t ext_count;
 	for(ext_count=0; device_extensions[ext_count]; ext_count++);
 
 	struct VkDeviceCreateInfo dev_ci = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-		.queueCreateInfoCount = (!surface || selected_g_qf == selected_p_qf) ? 1 : 2,
+		.queueCreateInfoCount = (!vk_surface || selected_g_qf == selected_p_qf) ? 1 : 2,
 		.pQueueCreateInfos = queue_ci,
 		.pEnabledFeatures = &features,
 		.enabledExtensionCount=ext_count,
@@ -304,7 +314,7 @@ int vkapi_init_device(VkSurfaceKHR surface) {
 	if (result != VK_SUCCESS) goto error;
 
 	vkapi.vkGetDeviceQueue(vkapi.device, selected_g_qf, 0, &vkapi.g_queue);
-	if (!surface) {
+	if (!vk_surface) {
 		vkapi.p_queue = VK_NULL_HANDLE;
 	}
 	else if (selected_g_qf == selected_p_qf) {
@@ -316,53 +326,48 @@ int vkapi_init_device(VkSurfaceKHR surface) {
 
 	vkapi.physical_device = vkapi.physical_devices[vkapi.selected_device];
 
-	result = vkapi.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkapi.physical_device, vkapi.surface, &vkapi.s_caps);
-	if (result != VK_SUCCESS) {
-		fprintf(stderr, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed: %i\n", result);
-		goto error;
-	}
-	result = vkapi.vkGetPhysicalDeviceSurfaceFormatsKHR(vkapi.physical_device, vkapi.surface, &vkapi.s_formats_count, NULL);
+	result = vkapi.vkGetPhysicalDeviceSurfaceFormatsKHR(vkapi.physical_device, vk_surface, &surface->s_formats_count, NULL);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkGetPhysicalDeviceSurfaceFormatsKHR failed: %i\n", result);
 		goto error;
 	}
-	vkapi.s_formats = (VkSurfaceFormatKHR *)calloc(vkapi.s_formats_count, sizeof(vkGetPhysicalDeviceSurfaceFormatsKHR));
-	result = vkapi.vkGetPhysicalDeviceSurfaceFormatsKHR(vkapi.physical_device, vkapi.surface, &vkapi.s_formats_count, vkapi.s_formats);
+	surface->s_formats = (VkSurfaceFormatKHR *)calloc(surface->s_formats_count, sizeof(vkGetPhysicalDeviceSurfaceFormatsKHR));
+	result = vkapi.vkGetPhysicalDeviceSurfaceFormatsKHR(vkapi.physical_device, vk_surface, &surface->s_formats_count, surface->s_formats);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkGetPhysicalDeviceSurfaceFormatsKHR failed: %i\n", result);
 		goto error;
 	}
-	result = vkapi.vkGetPhysicalDeviceSurfacePresentModesKHR(vkapi.physical_device, vkapi.surface, &vkapi.s_modes_count, NULL);
+	result = vkapi.vkGetPhysicalDeviceSurfacePresentModesKHR(vkapi.physical_device, vk_surface, &surface->s_modes_count, NULL);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkGetPhysicalDeviceSurfacePresentModesKHR failed: %i\n", result);
 		goto error;
 	}
-	vkapi.s_modes = (VkPresentModeKHR *)calloc(vkapi.s_modes_count, sizeof(vkGetPhysicalDeviceSurfacePresentModesKHR));
-	result = vkapi.vkGetPhysicalDeviceSurfacePresentModesKHR(vkapi.physical_device, vkapi.surface, &vkapi.s_modes_count, vkapi.s_modes);
+	surface->s_modes = (VkPresentModeKHR *)calloc(surface->s_modes_count, sizeof(vkGetPhysicalDeviceSurfacePresentModesKHR));
+	result = vkapi.vkGetPhysicalDeviceSurfacePresentModesKHR(vkapi.physical_device, vk_surface, &surface->s_modes_count, surface->s_modes);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkGetPhysicalDeviceSurfacePresentModesKHR failed: %i\n", result);
 		goto error;
 	}
 
-	if ((vkapi.s_formats_count == 1) && (vkapi.s_formats[0].format == VK_FORMAT_UNDEFINED)) {
-		/* surface doesn't care, choose what we like */
+	if ((surface->s_formats_count == 1) && (surface->s_formats[0].format == VK_FORMAT_UNDEFINED)) {
+		/* vk_surface doesn't care, choose what we like */
 		printf("Surface format is undefined, using VK_FORMAT_B8G8R8A8_SRGB\n");
-		vkapi.s_format = VK_FORMAT_B8G8R8A8_SRGB;
-		vkapi.s_colorspace = vkapi.s_formats[0].colorSpace;
+		surface->s_format = VK_FORMAT_B8G8R8A8_SRGB;
+		surface->s_colorspace = surface->s_formats[0].colorSpace;
 	}
 	else {
-		for(i = 0; i < vkapi.s_formats_count; i++) {
-			if (vkapi.s_formats[i].format == VK_FORMAT_B8G8R8A8_SRGB) {
+		for(i = 0; i < surface->s_formats_count; i++) {
+			if (surface->s_formats[i].format == VK_FORMAT_B8G8R8A8_SRGB) {
 				printf("Surface supports VK_FORMAT_B8G8R8A8_SRGB, using it\n");
-				vkapi.s_format = VK_FORMAT_B8G8R8A8_SRGB;
-				vkapi.s_colorspace = vkapi.s_formats[i].colorSpace;
+				surface->s_format = VK_FORMAT_B8G8R8A8_SRGB;
+				surface->s_colorspace = surface->s_formats[i].colorSpace;
 				break;
 			}
 		}
-		if (i == vkapi.s_formats_count) {
-			vkapi.s_format = vkapi.s_formats[0].format;
-			vkapi.s_colorspace = vkapi.s_formats[0].colorSpace;
-			printf("Using surface preferred format: %i\n", vkapi.s_format);
+		if (i == surface->s_formats_count) {
+			surface->s_format = surface->s_formats[0].format;
+			surface->s_colorspace = surface->s_formats[0].colorSpace;
+			printf("Using vk_surface preferred format: %i\n", surface->s_format);
 		}
 	}
 
@@ -373,14 +378,6 @@ error:
 
 void vkapi_finish_device(void) {
 
-	if (vkapi.s_formats) {
-		free(vkapi.s_formats);
-		vkapi.s_formats_count = 0;
-	}
-	if (vkapi.s_modes) {
-		free(vkapi.s_modes);
-		vkapi.s_modes_count = 0;
-	}
 	if (vkapi.device) {
 		vkapi.vkDeviceWaitIdle(vkapi.device);
 		vkapi.vkDestroyDevice(vkapi.device, NULL);
@@ -391,7 +388,7 @@ void vkapi_finish_device(void) {
 	vkapi.g_queue = VK_NULL_HANDLE;
 	vkapi.p_queue = VK_NULL_HANDLE;
 }
-	
+
 void vkapi_finish(void) {
 
 	if (vkapi.device) vkapi_finish_device();

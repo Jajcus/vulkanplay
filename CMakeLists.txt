@@ -5,9 +5,10 @@ include(CheckSymbolExists)
 
 project(vulkanplay)
 add_executable(vulkanplay
-		src/platform/plat.c
+		src/main.c
+		src/renderer.c
+		src/surface.c
 		src/vkapi.c
-		src/vulkanplay.c
 		)
 set(SHADERS src/shaders/main.vert src/shaders/main.frag)
 

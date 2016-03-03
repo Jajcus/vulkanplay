@@ -1,5 +1,5 @@
 #ifndef plat_wl
-#include "plat.h"
+#include "main.h"
 
 struct plat_surface * plat_wl_get_surface(void);
 void plat_wl_destroy_surface(struct plat_surface *surf);

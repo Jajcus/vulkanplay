@@ -28,17 +28,6 @@ struct vkapi {
 	uint32_t p_queue_family;
 	VkQueue p_queue;
 
-	VkSurfaceKHR surface;
-	VkSurfaceCapabilitiesKHR s_caps;
-
-	uint32_t s_formats_count;
-	VkSurfaceFormatKHR * s_formats;
-	VkFormat s_format;
-	VkColorSpaceKHR s_colorspace;
-
-	uint32_t s_modes_count;
-	VkPresentModeKHR * s_modes;
-
 	DEF_INST_PROC(vkCreateDevice);
 	DEF_INST_PROC(vkCreateInstance);
 	DEF_INST_PROC(vkDestroyInstance);
@@ -122,11 +111,13 @@ struct vkapi {
 
 extern struct vkapi vkapi;
 
+struct plat_surface;
+
 /* create Vulkan API instance */
 int vkapi_init_instance(const char * app_name);
 
 /* create Vulkan device, capable displaying to the surface */
-int vkapi_init_device(VkSurfaceKHR surface);
+int vkapi_init_device(struct plat_surface * surface);
 
 /* destroy Vulkan device */
 void vkapi_finish_device(void);

@@ -28,6 +28,7 @@ struct options options = {
 	.win_width = 500,
 	.win_height = 500,
 	.stats = 0,
+	.fps_cap = 0,
 };
 
 void request_exit(void) {
@@ -53,12 +54,13 @@ void usage(FILE *fp, const char *name) {
 "    %s [OPTIONS]\n"
 "\n"
 "Options:\n"
-"    --help, -h               this message\n"
-"    --fullscreen, -f         full-screen mode\n"
-"    --vsync=MODE, -v MODE    presentation (vsync) mode.\n"
-"    --stats, -s              show pipeline statistics\n"
-"    --width=VALUE, -w VALUE  window width\n"
-"    --height=VALUE, -h VALUE window height\n"
+"    --help, -h                this message\n"
+"    --fullscreen, -f          full-screen mode\n"
+"    --vsync=MODE, -v MODE     presentation (vsync) mode.\n"
+"    --stats, -s               show pipeline statistics\n"
+"    --width=VALUE, -W VALUE   window width\n"
+"    --height=VALUE, -H VALUE  window height\n"
+"    --fps-cap=VALUE, -c VALUE FPS cap\n"
 "\n", name);
 }
 
@@ -98,7 +100,7 @@ void parse_args(int argc, char **argv) {
 		else if (!strcmp(opt, "-s") || !strcmp(opt, "--stats")) {
 			options.stats = 1;
 		}
-		else if (!strcmp(opt, "-w") || !strcmp(opt, "--width")) {
+		else if (!strcmp(opt, "-W") || !strcmp(opt, "--width")) {
 			if (!arg) {
 				if (i < argc - 1) arg = argv[++i];
 				else break;
@@ -107,7 +109,7 @@ void parse_args(int argc, char **argv) {
 			if (val <= 0) break;
 			options.win_width = val;
 		}
-		else if (!strcmp(opt, "-h") || !strcmp(opt, "--height")) {
+		else if (!strcmp(opt, "-H") || !strcmp(opt, "--height")) {
 			if (!arg) {
 				if (i < argc - 1) arg = argv[++i];
 				else break;
@@ -115,6 +117,15 @@ void parse_args(int argc, char **argv) {
 			int val = atoi(arg);
 			if (val <= 0) break;
 			options.win_height = val;
+		}
+		else if (!strcmp(opt, "-c") || !strcmp(opt, "--fps-cap")) {
+			if (!arg) {
+				if (i < argc - 1) arg = argv[++i];
+				else break;
+			}
+			float val = atof(arg);
+			if (val <= 0) break;
+			options.fps_cap = val;
 		}
 		else break;
 	}

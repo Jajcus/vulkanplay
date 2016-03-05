@@ -987,8 +987,18 @@ void * render_loop(void * arg) {
 
 	int frames = 0;
 
-	struct timeval last_tv, tv;
+	struct timeval last_tv, last_fps_tv, tv;
 	gettimeofday(&last_tv, NULL);
+	last_fps_tv = last_tv;
+
+	float fps_cap_frame_time;
+
+	if (options.fps_cap) {
+		fps_cap_frame_time = 1.0f / (float)options.fps_cap;
+	}
+	else {
+		fps_cap_frame_time = 0.0f;
+	}
 
 	frame_index = 0;
 
@@ -1075,13 +1085,24 @@ void * render_loop(void * arg) {
 			frame_index %= FRAME_LAG;
 			frames++;
 			gettimeofday(&tv, NULL);
-			long seconds = tv.tv_sec - last_tv.tv_sec;
+			long seconds = tv.tv_sec - last_fps_tv.tv_sec;
 			if (seconds > 10 || (frames > 50 && seconds > 1)) {
-				double timedelta = (double)tv.tv_sec - last_tv.tv_sec;
-				timedelta += (double)((int32_t)tv.tv_usec - (int32_t)last_tv.tv_usec) / 1000000.0;
-				printf("%5i frames in %5.2f s - %5.1f FPS\n", frames, timedelta, (double)frames / timedelta);
-				last_tv = tv;
+				float timedelta = tv.tv_sec - last_fps_tv.tv_sec;
+				timedelta += (float)((int32_t)tv.tv_usec - (int32_t)last_fps_tv.tv_usec) / 1000000.0;
+				printf("%5i frames in %5.2f s - %5.1f FPS\n", frames, timedelta, (float)frames / timedelta);
+				last_fps_tv = tv;
 				frames = 0;
+			}
+			if (fps_cap_frame_time) {
+				float timedelta = tv.tv_sec - last_tv.tv_sec;
+				timedelta += (float)((int32_t)tv.tv_usec - (int32_t)last_tv.tv_usec) / 1000000.0;
+				if (timedelta < fps_cap_frame_time) {
+					usleep((useconds_t)((fps_cap_frame_time - timedelta) * 1000000));
+					gettimeofday(&last_tv, NULL);
+				}
+				else {
+					last_tv = tv;
+				}
 			}
 		}
 	}

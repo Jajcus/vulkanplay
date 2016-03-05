@@ -23,7 +23,7 @@
 	} \
 }
 
-struct vkapi vkapi = {};
+struct vkapi vkapi = {0};
 
 const char * instance_extensions[] = {
 	"VK_KHR_surface",
@@ -297,7 +297,7 @@ int vkapi_init_device(struct plat_surface * surface) {
 	};
 
 	/* require no optional features */
-	VkPhysicalDeviceFeatures features = {};
+	VkPhysicalDeviceFeatures features = {0};
 
 	uint32_t ext_count;
 	for(ext_count=0; device_extensions[ext_count]; ext_count++);

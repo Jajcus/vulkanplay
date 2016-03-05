@@ -128,8 +128,8 @@ struct model {
 	VkPipelineLayout pipeline_layout;
 	VkDescriptorSetLayout set_layout;
 
-	void * mapped_memory;
-} model = {};
+	unsigned char * mapped_memory;
+} model = {0};
 
 extern const unsigned char main_frag_spv[];
 extern unsigned int main_frag_spv_len;
@@ -383,7 +383,7 @@ void init_model(struct renderer * renderer) {
 
 	vkapi.vkAllocateMemory(vkapi.device, &mem_ai, NULL, &model.memory);
 
-	vkapi.vkMapMemory(vkapi.device, model.memory, 0, mem_size, 0, &model.mapped_memory);
+	vkapi.vkMapMemory(vkapi.device, model.memory, 0, mem_size, 0, (void *)&model.mapped_memory);
 
 	memcpy(model.mapped_memory + model.vertex_offset, tetrahedron_vertices, sizeof(tetrahedron_vertices));
 	memcpy(model.mapped_memory + model.normal_offset, normals, sizeof(tetrahedron_vertices));
@@ -443,7 +443,7 @@ void init_model(struct renderer * renderer) {
 	};
 
 	vkapi.vkAllocateCommandBuffers(vkapi.device, &cmd_buf_ai, &model.command_buffer);
-};
+}
 
 void render_model(struct renderer * renderer, uint32_t image_index) {
 
@@ -628,7 +628,7 @@ void render_model(struct renderer * renderer, uint32_t image_index) {
 		fprintf(stderr, "vkQueueSubmit failed: %i\n", result);
 	}
 	model.cmd_buf_fence_ready = 1;
-};
+}
 
 void destroy_model(struct renderer * renderer) {
 
@@ -654,7 +654,7 @@ void destroy_model(struct renderer * renderer) {
 	model.set_layout = NULL;
 	if (model.cmd_buf_fence) vkapi.vkDestroyFence(vkapi.device, model.cmd_buf_fence, NULL);
 	model.cmd_buf_fence = NULL;
-};
+}
 
 VkResult render_init(struct renderer * renderer) {
 
@@ -753,7 +753,7 @@ static uint32_t create_swapchain(struct renderer *renderer) {
 	VkResult result;
 	int i;
 	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-	VkExtent2D extent = {};
+	VkExtent2D extent = {0};
 	VkImage* swapchain_images = NULL;
 	VkSurfaceCapabilitiesKHR s_caps;
 
@@ -874,7 +874,7 @@ static void destroy_framebuffers(struct renderer * renderer) {
 		free(framebuffers);
 	}
 	renderer->framebuffers = NULL;
-};
+}
 
 static struct framebuffer * create_framebuffers(struct renderer * renderer) {
 
@@ -890,7 +890,7 @@ static struct framebuffer * create_framebuffers(struct renderer * renderer) {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.format = surface->s_format,
-		.components = {},
+		.components = {0},
 		.subresourceRange = {
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 			.levelCount = 1,
@@ -1076,7 +1076,7 @@ void * render_loop(void * arg) {
 			frames++;
 			gettimeofday(&tv, NULL);
 			long seconds = tv.tv_sec - last_tv.tv_sec;
-			if (seconds > 10 || frames > 50 && seconds > 1) {
+			if (seconds > 10 || (frames > 50 && seconds > 1)) {
 				double timedelta = (double)tv.tv_sec - last_tv.tv_sec;
 				timedelta += (double)((int32_t)tv.tv_usec - (int32_t)last_tv.tv_usec) / 1000000.0;
 				printf("%5i frames in %5.2f s - %5.1f FPS\n", frames, timedelta, (double)frames / timedelta);
@@ -1085,7 +1085,6 @@ void * render_loop(void * arg) {
 			}
 		}
 	}
-	fprintf(stderr, "render_loop finished normally (exit_requested=%i)\n", exit_requested);
 finish:
 	fprintf(stderr, "render thread cleaning up...\n");
 	vkapi.vkDeviceWaitIdle(vkapi.device);

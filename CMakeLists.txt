@@ -2,6 +2,7 @@ cmake_minimum_required (VERSION 3.1)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH}")
 include(CheckFunctionExists)
 include(CheckSymbolExists)
+include(CheckCCompilerFlag)
 
 project(vulkanplay)
 add_executable(vulkanplay
@@ -21,6 +22,17 @@ IF(NOT CMAKE_BUILD_TYPE)
 ENDIF(NOT CMAKE_BUILD_TYPE)
 
 find_package(Threads)
+
+# 'gnu99' is needed instead of c99 for sigaction()
+CHECK_C_COMPILER_FLAG("-std=gnu99" STD_GNU99_SUPPORTED)
+if(STD_GNU99_SUPPORTED)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
+endif()
+
+CHECK_C_COMPILER_FLAG("-Wall -pedantic" WALL_PEDANTIC_SUPPORTED)
+if(WALL_PEDANTIC_SUPPORTED)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -pedantic")
+endif()
 
 CHECK_FUNCTION_EXISTS(sinf SINF_IN_STDLIB)
 if(NOT SINF_IN_STDLIB)

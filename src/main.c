@@ -62,7 +62,7 @@ void usage(FILE *fp, const char *name) {
 "\n", name);
 }
 
-int parse_args(int argc, char **argv) {
+void parse_args(int argc, char **argv) {
 
 	int i;
 	char * opt = NULL;

@@ -27,10 +27,10 @@ static void global_registry_handler(void *data, struct wl_registry *registry, ui
 
 	if (strcmp(interface, "wl_compositor") == 0) {
 		surf->compositor = wl_registry_bind(registry, id, &wl_compositor_interface, 1);
-		fprintf(stderr, "Got compositor: %p (id: %d)\n", surf->compositor, id);
+		fprintf(stderr, "Got compositor: %p (id: %d)\n", (void *)surf->compositor, id);
 	} else if (strcmp(interface, "wl_shell") == 0) {
 		surf->shell = wl_registry_bind(registry, id, &wl_shell_interface, 1);
-		fprintf(stderr, "Got shell: %p (id: %d)\n", surf->shell, id);
+		fprintf(stderr, "Got shell: %p (id: %d)\n", (void *)surf->shell, id);
 	}
 }
 
@@ -83,7 +83,6 @@ struct plat_surface* plat_wl_get_surface(void) {
 		.surface=surf->surface,
 	};
 
-	printf("vkCreateWaylandSurfaceKHR = %p\n", vkapi.vkCreateWaylandSurfaceKHR);
 	VkResult result = vkapi.vkCreateWaylandSurfaceKHR(vkapi.instance, &surf_ci, NULL, &surf->plat_surface.vk_surface);
 	if (result != VK_SUCCESS) {
 		printf("vkCreateWaylandSurfaceKHR failed: %i\n", result);

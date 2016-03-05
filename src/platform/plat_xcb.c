@@ -44,7 +44,7 @@ struct plat_surface* plat_xcb_get_surface(void) {
 	xcb_screen_t * screen = xcb_setup_roots_iterator (xcb_get_setup (surf->conn)).data;
 	surf->wid = xcb_generate_id(surf->conn);
 
-	printf("Conn: %p, root: %li, wid: %li\n", surf->conn, (long)screen->root, (long)surf->wid);
+	printf("Conn: %p, root: %li, wid: %li\n", (void *)surf->conn, (long)screen->root, (long)surf->wid);
 
 	uint32_t mask = XCB_GC_FOREGROUND | XCB_CW_EVENT_MASK;
 	static uint32_t values[] = {
@@ -117,7 +117,6 @@ struct plat_surface* plat_xcb_get_surface(void) {
 		.window=surf->wid,
 	};
 
-	printf("vkCreateXcbSurfaceKHR = %p\n", vkapi.vkCreateXcbSurfaceKHR);
 	VkResult result = vkapi.vkCreateXcbSurfaceKHR(vkapi.instance, &surf_ci, NULL, &surf->plat_surface.vk_surface);
 	if (result != VK_SUCCESS) {
 		printf("vkCreateXcbSurfaceKHR failed: %i\n", result);

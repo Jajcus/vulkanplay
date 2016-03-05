@@ -90,7 +90,7 @@ static const vec4 test_colors[] = {
 	{ 0.0, 1.0, 0.0, 1.0 },
 	{ 0.0, 0.0, 1.0, 1.0 },
 };
-const uint32_t test_triangle_count = 4;
+const uint32_t test_triangle_count = 1;
 
 struct uniform_buffer {
 	mat4x4 mvp_matrix;

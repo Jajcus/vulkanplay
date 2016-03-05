@@ -49,7 +49,10 @@ struct plat_surface* plat_xcb_get_surface(void) {
 	uint32_t mask = XCB_GC_FOREGROUND | XCB_CW_EVENT_MASK;
 	static uint32_t values[] = {
 				0,
-				XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_KEY_PRESS
+				XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY
+				| XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE
+				| XCB_EVENT_MASK_POINTER_MOTION
+				| XCB_EVENT_MASK_KEY_PRESS
 				};
 	values[0] = screen->black_pixel;
 
@@ -155,6 +158,8 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 	};
 	sigaction(SIGINT, &sa, &old_sa);
 
+	int width = 1, height = 1;
+
 	xcb_generic_event_t *event;
 	while ( !_plat_xcb_signal_received && !exit_requested() && (event = xcb_wait_for_event(xcb_surf->conn)) ) {
         	switch (event->response_type & ~0x80) {
@@ -167,19 +172,37 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 			}
 			case XCB_BUTTON_PRESS: {
 				xcb_button_press_event_t *bp = (xcb_button_press_event_t *)event;
-				printf("Button %i pressed\n", bp->detail);
+				printf("Button %i pressed at (%4i, %4i)\n", bp->detail, bp->event_x, bp->event_y);
 				if (bp->detail == 3) {
 					printf("Exitting on right click\n");
 					request_exit();
 				}
+				on_left_click(2.0f * bp->event_x / width - 1.0f,
+					       -2.0f * bp->event_y / height + 1.0f);
+				break;
+			}
+			case XCB_BUTTON_RELEASE: {
+				//xcb_button_release_event_t *bp = (xcb_button_release_event_t *)event;
+				//printf("Button %i released at (%4i, %4i)\n", bp->detail, bp->event_x, bp->event_y);
+				break;
+			}
+			case XCB_MOTION_NOTIFY: {
+				//xcb_motion_notify_event_t *bp = (xcb_motion_notify_event_t *)event;
+				//printf("Motion %i at (%4i, %4i)\n", bp->detail, bp->event_x, bp->event_y);
 				break;
 			}
 			case XCB_KEY_PRESS: {
-				xcb_key_press_event_t *bp = (xcb_key_press_event_t *)event;
-				printf("Button %i pressed\n", bp->detail);
+				xcb_key_press_event_t *kp = (xcb_key_press_event_t *)event;
+				printf("Key %i pressed\n", kp->detail);
 				break;
 			}
-
+			case XCB_CONFIGURE_NOTIFY: {
+				xcb_configure_notify_event_t *cn = (xcb_configure_notify_event_t *)event;
+				printf("Configure notify, new size: (%4i, %4i)\n", cn->width, cn->height);
+				width = cn->width ? cn->width : 1;
+				height = cn->height ? cn->height : 1;
+				break;
+			}
 			case XCB_CLIENT_MESSAGE: {
 				xcb_client_message_event_t *cm = (xcb_client_message_event_t*)event;
 				printf("Client message\n");

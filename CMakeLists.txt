@@ -7,7 +7,10 @@ include(CheckCCompilerFlag)
 project(vulkanplay)
 add_executable(vulkanplay
 		src/main.c
+		src/model.c
+		src/models/tetrahedron.c
 		src/renderer.c
+		src/scene.c
 		src/surface.c
 		src/vkapi.c
 		)

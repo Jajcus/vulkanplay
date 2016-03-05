@@ -16,6 +16,8 @@
 #include "surface.h"
 #include "main.h"
 
+#include "scene.h"
+
 struct framebuffer {
 
 	VkImage image;
@@ -31,6 +33,7 @@ struct framebuffer {
 
 struct renderer {
 	struct plat_surface * surface;
+	struct scene * scene;
 
 	VkSwapchainKHR swapchain;
 	VkImage* swapchain_images;
@@ -47,72 +50,11 @@ struct renderer {
 	VkRenderPass render_pass;
 	VkDescriptorPool descriptor_pool;
 
-	pthread_t thread;
-	pthread_mutex_t mutex;
-	int stop; /* request to stop the rendering thread */
-};
-
-/* tetrahedron vertices */
-#define V1 { 1.0f,  1.0f,  1.0f, 1.0f}
-#define V2 {-1.0f, -1.0f,  1.0f, 1.0f}
-#define V3 {-1.0f,  1.0f, -1.0f, 1.0f}
-#define V4 { 1.0f, -1.0f, -1.0f, 1.0f}
-
-vec4 V1v = V1;
-vec4 V2v = V2;
-vec4 V3v = V3;
-vec4 V4v = V4;
-
-/* tetrahedron colors */
-#define C1  {0.8f,  0.5f,  0.5f, 1.0f}
-#define C2  {0.5f,  0.8f,  0.5f, 1.0f}
-#define C3  {0.5f,  0.5f,  0.8f, 1.0f}
-#define C4  {0.5f,  0.8f,  0.8f, 1.0f}
-
-static const vec4 tetrahedron_vertices[] = {
-	V1, V2, V4,
-	V1, V3, V2,
-	V1, V4, V3,
-	V2, V3, V4,
-};
-
-static const vec4 tetrahedron_colors[] = {
-	C1, C2, C4,
-	C1, C3, C2,
-	C1, C4, C3,
-	C2, C3, C4,
-};
-const uint32_t tetrahedron_triangle_count = 4;
-
-static const vec4 test_vertices[] = {
-	{ 0.1, 0.1, 0.5, 1.0 },
-	{ 0.9, 0.1, 0.5, 1.0 },
-	{ 0.5, 0.9, 0.5, 1.0 },
-};
-static const vec4 test_colors[] = {
-	{ 1.0, 0.0, 0.0, 1.0 },
-	{ 0.0, 1.0, 0.0, 1.0 },
-	{ 0.0, 0.0, 1.0, 1.0 },
-};
-const uint32_t test_triangle_count = 1;
-
-struct uniform_buffer {
-	mat4x4 mvp_matrix;
-	mat4x4 mv_matrix;
-	mat4x4 normal_matrix;
-	vec4 light_pos;
-};
-
-struct model {
-	mat4x4 p_matrix;
-	mat4x4 v_matrix;
-	mat4x4 m_matrix;
-
 	VkPipeline pipeline;
 
+	uint32_t materials_offset;
 	uint32_t vertex_offset;
-	uint32_t normal_offset;
-	uint32_t color_offset;
+	uint32_t instance_offset;
 
 	VkDeviceMemory memory;
 	VkBuffer buffer;
@@ -129,7 +71,25 @@ struct model {
 	VkDescriptorSetLayout set_layout;
 
 	unsigned char * mapped_memory;
-} model = {0};
+
+	mat4x4 p_matrix;
+	mat4x4 v_matrix;
+
+	pthread_t thread;
+	pthread_mutex_t mutex;
+	int stop; /* request to stop the rendering thread */
+};
+
+struct uniform_buffer {
+	vec4 light_pos;
+	struct material materials[];
+};
+
+struct instance_data {
+	mat4x4 mv_matrix;
+	mat4x4 mvp_matrix;
+	mat4x4 normal_matrix;
+};
 
 extern const unsigned char main_frag_spv[];
 extern unsigned int main_frag_spv_len;
@@ -154,7 +114,7 @@ void normal(vec4 result, const vec4 a, const vec4 b, const vec4 c) {
 	result[3] = 0;
 }
 
-void init_model(struct renderer * renderer) {
+void create_pipeline(struct renderer * renderer) {
 
 	uint32_t i;
 
@@ -174,16 +134,15 @@ void init_model(struct renderer * renderer) {
 		.pBindings = dsl_b,
 	};
 
-
-	vkapi.vkCreateDescriptorSetLayout(vkapi.device, &dsl_ci, NULL, &model.set_layout);
+	vkapi.vkCreateDescriptorSetLayout(vkapi.device, &dsl_ci, NULL, &renderer->set_layout);
 
 	VkPipelineLayoutCreateInfo pipeline_layout_ci = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.setLayoutCount = 1,
-		.pSetLayouts = &model.set_layout,
+		.pSetLayouts = &renderer->set_layout,
 	};
 
-	vkapi.vkCreatePipelineLayout(vkapi.device, &pipeline_layout_ci, NULL, &model.pipeline_layout);
+	vkapi.vkCreatePipelineLayout(vkapi.device, &pipeline_layout_ci, NULL, &renderer->pipeline_layout);
 
 	VkShaderModuleCreateInfo vs_module_ci = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -191,7 +150,7 @@ void init_model(struct renderer * renderer) {
 		.pCode = (uint32_t *)main_vert_spv,
 	};
 
-	vkapi.vkCreateShaderModule(vkapi.device, &vs_module_ci, NULL, &model.vs_module);
+	vkapi.vkCreateShaderModule(vkapi.device, &vs_module_ci, NULL, &renderer->vs_module);
 
 	VkShaderModuleCreateInfo fs_module_ci = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -199,19 +158,19 @@ void init_model(struct renderer * renderer) {
 		.pCode = (uint32_t *)main_frag_spv,
 	};
 
-	vkapi.vkCreateShaderModule(vkapi.device, &fs_module_ci, NULL, &model.fs_module);
+	vkapi.vkCreateShaderModule(vkapi.device, &fs_module_ci, NULL, &renderer->fs_module);
 
 	VkPipelineShaderStageCreateInfo shader_stage_ci[] = {
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_VERTEX_BIT,
-			.module = model.vs_module,
+			.module = renderer->vs_module,
 			.pName = "main",
 		},
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-			.module = model.fs_module,
+			.module = renderer->fs_module,
 			.pName = "main",
 		},
 	};
@@ -219,47 +178,48 @@ void init_model(struct renderer * renderer) {
 	VkVertexInputBindingDescription vertex_binding_descr[] = {
 		{
 			.binding = 0,
-			.stride = 4 * sizeof(float),
+			.stride = sizeof(struct vertex_data),
 			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
 		},
 		{
 			.binding = 1,
-			.stride = 4 * sizeof(float),
-			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-		},
-		{
-			.binding = 2,
-			.stride = 4 * sizeof(float),
-			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+			.stride = sizeof(struct instance_data),
+			.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
 		},
 	};
 
-	VkVertexInputAttributeDescription vertex_attr_descr[] = {
-		{
-			.location = 0,
-			.binding = 0,
-			.format = VK_FORMAT_R32G32B32_SFLOAT,
-			.offset = 0,
-		},
-		{
-			.location = 1,
-			.binding = 1,
-			.format = VK_FORMAT_R32G32B32_SFLOAT,
-			.offset = 0,
-		},
-		{
-			.location = 2,
-			.binding = 2,
-			.format = VK_FORMAT_R32G32B32_SFLOAT,
-			.offset = 0,
-		}
+	VkVertexInputAttributeDescription vertex_attr_descr[15] = {
+		// in_position
+		{ .location = 0, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 0, },
+		// in_normal
+		{ .location = 1, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(vec4), },
+		// in_material
+		{ .location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_UINT,   .offset = 2 * sizeof(vec4), },
+
+		// mv_matrix
+		{ .location = 4, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 0, },
+		{ .location = 5, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(vec4), },
+		{ .location = 6, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(vec4), },
+		{ .location = 7, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 3 * sizeof(vec4), },
+
+		// mvp_matrix
+		{ .location = 8, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(mat4x4), },
+		{ .location = 9, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(mat4x4) + sizeof(vec4), },
+		{ .location = 10, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(mat4x4) + 2 * sizeof(vec4), },
+		{ .location = 11, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(mat4x4) + 3 * sizeof(vec4), },
+
+		// normal_matrix
+		{ .location = 12, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(mat4x4), },
+		{ .location = 13, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(mat4x4) + sizeof(vec4), },
+		{ .location = 14, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(mat4x4) + 2 * sizeof(vec4), },
+		{ .location = 15, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(mat4x4) + 3 * sizeof(vec4), },
 	};
 
 	VkPipelineVertexInputStateCreateInfo vis_ci = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.vertexBindingDescriptionCount = 3,
+		.vertexBindingDescriptionCount = 2,
 		.pVertexBindingDescriptions = vertex_binding_descr,
-		.vertexAttributeDescriptionCount = 3,
+		.vertexAttributeDescriptionCount = 15,
 		.pVertexAttributeDescriptions = vertex_attr_descr,
 	};
 
@@ -326,31 +286,35 @@ void init_model(struct renderer * renderer) {
 		.pColorBlendState = &cbs_ci,
 		.pDynamicState = &ds_ci,
 
-		.layout = model.pipeline_layout,
+		.layout = renderer->pipeline_layout,
 		.renderPass = renderer->render_pass,
 		.subpass = 0,
 	};
 
-	vkapi.vkCreateGraphicsPipelines(vkapi.device, (VkPipelineCache)VK_NULL_HANDLE, 1, &pipeline_ci, NULL, &model.pipeline);
+	vkapi.vkCreateGraphicsPipelines(vkapi.device, (VkPipelineCache)VK_NULL_HANDLE, 1, &pipeline_ci, NULL, &renderer->pipeline);
 
-	// compute normals
-	vec4 * normals = alloca(sizeof(tetrahedron_vertices));
-	for(i = 0; i < sizeof(tetrahedron_vertices) / sizeof(vec4); i += 3) {
-		vec4 t_normal;
-		normal(t_normal,
-				tetrahedron_vertices[i],
-				tetrahedron_vertices[i + 1],
-				tetrahedron_vertices[i + 2]);
-		vec4_norm(normals[i], t_normal);
-		normals[i][3] = 1.0f;
-		memcpy(normals[i + 1], normals[i], sizeof(vec4));
-		memcpy(normals[i + 2], normals[i], sizeof(vec4));
+	scene_lock(renderer->scene);
+
+	uint32_t vertices_total = 0;
+	uint32_t instances_total = 0;
+	uint32_t indices_total = 0;
+	for(i = 0; i < renderer->scene->objects_len; i++) {
+		struct scene_object * obj = &renderer->scene->objects[i];
+		struct model * model = obj->model;
+		obj->r.vertex_index = vertices_total;
+		obj->r.instance_index = instances_total;
+		obj->r.index_index = indices_total;
+		vertices_total += model->vertices_len;
+		instances_total += 1;
+		indices_total += model->indices_len;
 	}
 
-	model.vertex_offset = sizeof(struct uniform_buffer);
-	model.normal_offset = model.vertex_offset + sizeof(tetrahedron_vertices);
-	model.color_offset = model.normal_offset + sizeof(tetrahedron_vertices);
-	uint32_t mem_size = model.color_offset + sizeof(tetrahedron_colors);
+	assert(indices_total == 0); // FIXME
+
+	renderer->materials_offset = sizeof(struct uniform_buffer);
+	renderer->vertex_offset = renderer->materials_offset + sizeof(struct material) * renderer->scene->materials_len;
+	renderer->instance_offset = renderer->vertex_offset + sizeof(struct vertex_data) * vertices_total;
+	uint32_t mem_size = renderer->instance_offset + sizeof(struct instance_data) * instances_total;
 
 	VkBufferCreateInfo buffer_ci = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -358,11 +322,11 @@ void init_model(struct renderer * renderer) {
 		.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 	};
 
-	vkapi.vkCreateBuffer(vkapi.device, &buffer_ci, NULL, &model.buffer);
+	vkapi.vkCreateBuffer(vkapi.device, &buffer_ci, NULL, &renderer->buffer);
 
 	VkMemoryRequirements mem_req;
 
-	vkapi.vkGetBufferMemoryRequirements(vkapi.device, model.buffer, &mem_req);
+	vkapi.vkGetBufferMemoryRequirements(vkapi.device, renderer->buffer, &mem_req);
 
 	for (i = 0; i < vkapi.memory_properties.memoryTypeCount; i++) {
 		if ((vkapi.memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
@@ -381,37 +345,51 @@ void init_model(struct renderer * renderer) {
 		.memoryTypeIndex = i,
 	};
 
-	vkapi.vkAllocateMemory(vkapi.device, &mem_ai, NULL, &model.memory);
+	vkapi.vkAllocateMemory(vkapi.device, &mem_ai, NULL, &renderer->memory);
 
-	vkapi.vkMapMemory(vkapi.device, model.memory, 0, mem_size, 0, (void *)&model.mapped_memory);
+	vkapi.vkMapMemory(vkapi.device, renderer->memory, 0, mem_size, 0, (void *)&renderer->mapped_memory);
 
-	memcpy(model.mapped_memory + model.vertex_offset, tetrahedron_vertices, sizeof(tetrahedron_vertices));
-	memcpy(model.mapped_memory + model.normal_offset, normals, sizeof(tetrahedron_vertices));
-	memcpy(model.mapped_memory + model.color_offset, tetrahedron_colors, sizeof(tetrahedron_colors));
+	memcpy(renderer->mapped_memory + renderer->materials_offset,
+		renderer->scene->materials,
+		sizeof(struct material) * renderer->scene->materials_len
+		);
 
-	vkapi.vkBindBufferMemory(vkapi.device, model.buffer, model.memory, 0);
+	for(i = 0; i < renderer->scene->objects_len; i++) {
+		struct scene_object * obj = &renderer->scene->objects[i];
+		struct model * model = obj->model;
+
+		memcpy(renderer->mapped_memory + renderer->vertex_offset
+				+ obj->r.vertex_index * sizeof(struct vertex_data),
+			model->vertices,
+			model->vertices_len * sizeof(struct vertex_data)
+			);
+	}
+
+	scene_unlock(renderer->scene);
+
+	vkapi.vkBindBufferMemory(vkapi.device, renderer->buffer, renderer->memory, 0);
 
 	VkDescriptorSetAllocateInfo ds_ai = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 		.descriptorPool = renderer->descriptor_pool,
 		.descriptorSetCount = 1,
-		.pSetLayouts = &model.set_layout,
+		.pSetLayouts = &renderer->set_layout,
 	};
 
-	vkapi.vkAllocateDescriptorSets(vkapi.device, &ds_ai, &model.descriptor_set);
+	vkapi.vkAllocateDescriptorSets(vkapi.device, &ds_ai, &renderer->descriptor_set);
 
 	VkDescriptorBufferInfo d_buffer_infos[] = {
 		{
-			.buffer = model.buffer,
+			.buffer = renderer->buffer,
 			.offset = 0,
-			.range = sizeof(struct uniform_buffer),
+			.range = sizeof(struct uniform_buffer) + renderer->scene->materials_len * sizeof(struct material),
 		}
 	};
 
 	VkWriteDescriptorSet w_descr_sets[] = {
 		{
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.dstSet = model.descriptor_set,
+			.dstSet = renderer->descriptor_set,
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 			.dstBinding = 0,
 			.dstArrayElement = 0,
@@ -428,72 +406,61 @@ void init_model(struct renderer * renderer) {
 		.queueFamilyIndex = vkapi.g_queue_family,
 	};
 
-	vkapi.vkCreateCommandPool(vkapi.device, &cmd_pool_ci, NULL, &model.command_pool);
+	vkapi.vkCreateCommandPool(vkapi.device, &cmd_pool_ci, NULL, &renderer->command_pool);
 
 	VkFenceCreateInfo fence_ci = {
 		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
 	};
 
-	vkapi.vkCreateFence(vkapi.device, &fence_ci, NULL, &model.cmd_buf_fence);
+	vkapi.vkCreateFence(vkapi.device, &fence_ci, NULL, &renderer->cmd_buf_fence);
 
 	VkCommandBufferAllocateInfo cmd_buf_ai = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = model.command_pool,
+		.commandPool = renderer->command_pool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = 1,
 	};
 
-	vkapi.vkAllocateCommandBuffers(vkapi.device, &cmd_buf_ai, &model.command_buffer);
+	vkapi.vkAllocateCommandBuffers(vkapi.device, &cmd_buf_ai, &renderer->command_buffer);
 }
 
-void render_model(struct renderer * renderer, uint32_t image_index) {
+void render_scene(struct renderer * renderer, uint32_t image_index) {
 
 	VkResult result;
 	struct uniform_buffer uniform_buffer;
+	uint32_t i;
 	struct framebuffer * fb = &renderer->framebuffers[image_index];
 
-	vec3 origin = {0, 0, 0};
 	vec3 up = {0.0f, -1.0f, 0.0};
-	vec4 eye_base = {-0.5f, 1.0f, 6.0f, 1.0f};
-	static int view_angle_y = 0, view_angle_x = 0;
-	vec4 light_pos = { 2.0f,  2.0f, 10.0f, 1.0f };
 
-	mat4x4_perspective(model.p_matrix, (float)degreesToRadians(45.0f), 1.0f, 1.0f, 100.0f);
+	mat4x4_perspective(renderer->p_matrix, (float)degreesToRadians(45.0f), 1.0f, 1.0f, 100.0f);
 
-	vec4 eye;
-	mat4x4 identity, rot1, rot2;
-	mat4x4_identity(identity);
+	mat4x4_look_at(renderer->v_matrix, renderer->scene->eye, renderer->scene->look_at, up);
 
-	mat4x4_rotate_Y(rot1, identity, (float)degreesToRadians((float)view_angle_y));
-	mat4x4_rotate_X(rot2, rot1, (float)degreesToRadians((float)view_angle_y));
+	for(i = 0; i < renderer->scene->objects_len; i++) {
+		struct scene_object * obj = &renderer->scene->objects[i];
+		struct instance_data * inst = (struct instance_data *)(
+			renderer->mapped_memory + renderer->instance_offset +
+			obj->r.instance_index * sizeof(struct instance_data));
 
-	mat4x4_mul_vec4(eye, rot2, eye_base);
+		mat4x4_mul(inst->mv_matrix, renderer->v_matrix, obj->model_matrix);
+		mat4x4_mul(inst->mvp_matrix, renderer->p_matrix, inst->mv_matrix);
 
-	mat4x4_look_at(model.v_matrix, eye, origin, up);
-
-	mat4x4_identity(model.m_matrix);
-
-	mat4x4_mul(uniform_buffer.mv_matrix, model.v_matrix, model.m_matrix);
-
-	view_angle_y += 1;
-	view_angle_y = view_angle_y % 360;
-	view_angle_x += 3;
-	view_angle_x = view_angle_x % 360;
-
-	mat4x4_mul(uniform_buffer.mvp_matrix, model.p_matrix, uniform_buffer.mv_matrix);
-	memcpy(uniform_buffer.light_pos, light_pos, sizeof(vec4));
-	mat4x4 imv_matrix;
-	mat4x4_invert(imv_matrix, uniform_buffer.mv_matrix);
-	mat4x4_transpose(uniform_buffer.normal_matrix, imv_matrix);
-
-	memcpy(model.mapped_memory, &uniform_buffer, sizeof(uniform_buffer));
-
-	if (model.cmd_buf_fence_ready) {
-		vkapi.vkWaitForFences(vkapi.device, 1, &model.cmd_buf_fence, VK_TRUE, UINT64_MAX);
-		vkapi.vkResetFences(vkapi.device, 1, &model.cmd_buf_fence);
+		mat4x4 imv_matrix;
+		mat4x4_invert(imv_matrix, inst->mv_matrix);
+		mat4x4_transpose(inst->normal_matrix, imv_matrix);
 	}
 
-	VkCommandBuffer cmd_buffer = model.command_buffer;
+	memcpy(uniform_buffer.light_pos, renderer->scene->light_pos, sizeof(vec4));
+
+	memcpy(renderer->mapped_memory, &uniform_buffer, sizeof(uniform_buffer));
+
+	if (renderer->cmd_buf_fence_ready) {
+		vkapi.vkWaitForFences(vkapi.device, 1, &renderer->cmd_buf_fence, VK_TRUE, UINT64_MAX);
+		vkapi.vkResetFences(vkapi.device, 1, &renderer->cmd_buf_fence);
+	}
+
+	VkCommandBuffer cmd_buffer = renderer->command_buffer;
 	vkapi.vkResetCommandBuffer(cmd_buffer, 0);
 
 	VkCommandBufferBeginInfo cmd_buf_bi = {
@@ -582,17 +549,23 @@ void render_model(struct renderer * renderer, uint32_t image_index) {
 		},
 	};
 
-	VkBuffer buffers[] = { model.buffer, model.buffer, model.buffer };
-	VkDeviceSize offsets[] = { model.vertex_offset, model.normal_offset, model.color_offset };
+	VkBuffer buffers[] = { renderer->buffer, renderer->buffer };
+	VkDeviceSize offsets[] = { renderer->vertex_offset, renderer->instance_offset };
 
-	vkapi.vkCmdBindVertexBuffers(cmd_buffer, 0, 3, buffers, offsets);
+	vkapi.vkCmdBindVertexBuffers(cmd_buffer, 0, 2, buffers, offsets);
 
-	vkapi.vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, model.pipeline);
+	vkapi.vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
 
-	vkapi.vkCmdBindDescriptorSets(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, model.pipeline_layout,
-				0, 1, &model.descriptor_set, 0, NULL);
+	vkapi.vkCmdBindDescriptorSets(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline_layout,
+				0, 1, &renderer->descriptor_set, 0, NULL);
 
-	vkapi.vkCmdDraw(cmd_buffer, 3 * tetrahedron_triangle_count, 1, 0, 0);
+	for(i = 0; i < renderer->scene->objects_len; i++) {
+		struct scene_object * obj = &renderer->scene->objects[i];
+		struct model * mod = obj->model;
+
+		vkapi.vkCmdDraw(cmd_buffer, mod->vertices_len, 1, obj->r.vertex_index, obj->r.instance_index);
+	}
+
 	vkapi.vkCmdEndRenderPass(cmd_buffer);
 
 	if (fb->query_pool) {
@@ -624,37 +597,37 @@ void render_model(struct renderer * renderer, uint32_t image_index) {
 
 	vkapi.vkEndCommandBuffer(cmd_buffer);
 
-	result = vkapi.vkQueueSubmit(vkapi.g_queue, 1, submits, model.cmd_buf_fence);
+	result = vkapi.vkQueueSubmit(vkapi.g_queue, 1, submits, renderer->cmd_buf_fence);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkQueueSubmit failed: %i\n", result);
 	}
-	model.cmd_buf_fence_ready = 1;
+	renderer->cmd_buf_fence_ready = 1;
 }
 
-void destroy_model(struct renderer * renderer) {
+void destroy_pipeline(struct renderer * renderer) {
 
-	if (model.command_pool) vkapi.vkDestroyCommandPool(vkapi.device, model.command_pool, NULL);
-	model.command_pool = NULL;
-	if (model.buffer) vkapi.vkDestroyBuffer(vkapi.device, model.buffer, NULL);
-	model.buffer = NULL;
-	if (model.memory) {
-		vkapi.vkUnmapMemory(vkapi.device, model.memory);
-		vkapi.vkFreeMemory(vkapi.device, model.memory, NULL);
+	if (renderer->command_pool) vkapi.vkDestroyCommandPool(vkapi.device, renderer->command_pool, NULL);
+	renderer->command_pool = NULL;
+	if (renderer->buffer) vkapi.vkDestroyBuffer(vkapi.device, renderer->buffer, NULL);
+	renderer->buffer = NULL;
+	if (renderer->memory) {
+		vkapi.vkUnmapMemory(vkapi.device, renderer->memory);
+		vkapi.vkFreeMemory(vkapi.device, renderer->memory, NULL);
 	}
-	model.memory = NULL;
-	model.mapped_memory = NULL;
-	if (model.pipeline) vkapi.vkDestroyPipeline(vkapi.device, model.pipeline, NULL);
-	model.pipeline = NULL;
-	if (model.vs_module) vkapi.vkDestroyShaderModule(vkapi.device, model.vs_module, NULL);
-	model.vs_module = NULL;
-	if (model.fs_module) vkapi.vkDestroyShaderModule(vkapi.device, model.fs_module, NULL);
-	model.fs_module = NULL;
-	if (model.pipeline_layout) vkapi.vkDestroyPipelineLayout(vkapi.device, model.pipeline_layout, NULL);
-	model.pipeline_layout = NULL;
-	if (model.set_layout) vkapi.vkDestroyDescriptorSetLayout(vkapi.device, model.set_layout, NULL);
-	model.set_layout = NULL;
-	if (model.cmd_buf_fence) vkapi.vkDestroyFence(vkapi.device, model.cmd_buf_fence, NULL);
-	model.cmd_buf_fence = NULL;
+	renderer->memory = NULL;
+	renderer->mapped_memory = NULL;
+	if (renderer->pipeline) vkapi.vkDestroyPipeline(vkapi.device, renderer->pipeline, NULL);
+	renderer->pipeline = NULL;
+	if (renderer->vs_module) vkapi.vkDestroyShaderModule(vkapi.device, renderer->vs_module, NULL);
+	renderer->vs_module = NULL;
+	if (renderer->fs_module) vkapi.vkDestroyShaderModule(vkapi.device, renderer->fs_module, NULL);
+	renderer->fs_module = NULL;
+	if (renderer->pipeline_layout) vkapi.vkDestroyPipelineLayout(vkapi.device, renderer->pipeline_layout, NULL);
+	renderer->pipeline_layout = NULL;
+	if (renderer->set_layout) vkapi.vkDestroyDescriptorSetLayout(vkapi.device, renderer->set_layout, NULL);
+	renderer->set_layout = NULL;
+	if (renderer->cmd_buf_fence) vkapi.vkDestroyFence(vkapi.device, renderer->cmd_buf_fence, NULL);
+	renderer->cmd_buf_fence = NULL;
 }
 
 VkResult render_init(struct renderer * renderer) {
@@ -1039,7 +1012,7 @@ void * render_loop(void * arg) {
 
 	frame_index = 0;
 
-	init_model(renderer);
+	create_pipeline(renderer);
 
 	while(!exit_requested()) {
 		pthread_mutex_lock(&renderer->mutex);
@@ -1084,7 +1057,7 @@ void * render_loop(void * arg) {
 				fprintf(stderr, "vkAcquireNextImageKHR failed: %i\n", result);
 				goto finish;
 			}
-			render_model(renderer, image_index);
+			render_scene(renderer, image_index);
 			VkPresentInfoKHR pi = {
 				.sType =  VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 				.swapchainCount = 1,
@@ -1150,7 +1123,7 @@ finish:
 	vkapi.vkDeviceWaitIdle(vkapi.device);
 	destroy_framebuffers(renderer);
 	destroy_swapchain(renderer);
-	destroy_model(renderer);
+	destroy_pipeline(renderer);
 	render_deinit(renderer);
 	if (renderer->image_acquired_sem) vkapi.vkDestroySemaphore(vkapi.device, renderer->image_acquired_sem, NULL);
 	if (renderer->rendering_complete_sem) vkapi.vkDestroySemaphore(vkapi.device, renderer->rendering_complete_sem, NULL);
@@ -1163,11 +1136,12 @@ finish:
 	return NULL;
 }
 
-struct renderer * start_renderer(struct plat_surface * surface) {
+struct renderer * start_renderer(struct plat_surface * surface, struct scene * scene) {
 
 	struct renderer * renderer = calloc(1, sizeof(struct renderer));
 
 	renderer->surface = surface;
+	renderer->scene = scene;
 
 	pthread_mutex_init(&renderer->mutex, NULL);
 	pthread_create(&renderer->thread, NULL, render_loop, renderer);

@@ -113,6 +113,8 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkCmdDraw);
 	GET_DEV_PROC(vkCmdEndRenderPass);
 	GET_DEV_PROC(vkCmdResetQueryPool);
+	GET_DEV_PROC(vkCmdSetScissor);
+	GET_DEV_PROC(vkCmdSetViewport);
 	GET_DEV_PROC(vkCreateBuffer);
 	GET_DEV_PROC(vkCreateCommandPool);
 	GET_DEV_PROC(vkCreateDescriptorPool);

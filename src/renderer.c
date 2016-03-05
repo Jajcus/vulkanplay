@@ -263,30 +263,10 @@ void init_model(struct renderer * renderer, uint32_t image_index) {
 		.primitiveRestartEnable = VK_FALSE,
 	};
 
-	VkViewport viewports[] = {
-		{
-			.x = 0,
-			.y = 0,
-			.width = fb->width,
-			.height = fb->height,
-			.minDepth = 0.0f,
-			.maxDepth = 1.0f,
-		}
-	};
-
-	VkRect2D scissors[] = {
-		{
-			.offset = { .x = 0, .y = 0 },
-			.extent = { .width = fb->width, .height = fb->height },
-		}
-	};
-
 	VkPipelineViewportStateCreateInfo vs_ci = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
 		.viewportCount = 1,
-		.pViewports = viewports,
 		.scissorCount = 1,
-		.pScissors = scissors,
 	};
 
 	VkPipelineRasterizationStateCreateInfo rs_ci = {
@@ -314,6 +294,17 @@ void init_model(struct renderer * renderer, uint32_t image_index) {
 		.pAttachments = cb_attachments,
 	};
 
+	VkDynamicState dynamic_states[] = {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR,
+	};
+
+	VkPipelineDynamicStateCreateInfo ds_ci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+		.dynamicStateCount = 2,
+		.pDynamicStates = dynamic_states,
+	};
+
 	VkGraphicsPipelineCreateInfo pipeline_ci = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 		.stageCount = 2,
@@ -327,13 +318,12 @@ void init_model(struct renderer * renderer, uint32_t image_index) {
 		.pMultisampleState = &mss_ci,
 		.pDepthStencilState = NULL,
 		.pColorBlendState = &cbs_ci,
-		.pDynamicState = NULL,
+		.pDynamicState = &ds_ci,
 
 		.layout = model.pipeline_layout,
 		.renderPass = renderer->render_pass,
 		.subpass = 0,
 	};
-
 
 	vkapi.vkCreateGraphicsPipelines(vkapi.device, (VkPipelineCache)VK_NULL_HANDLE, 1, &pipeline_ci, NULL, &model.pipeline);
 
@@ -499,6 +489,28 @@ void render_model(struct renderer * renderer, uint32_t image_index) {
 		vkapi.vkCmdResetQueryPool(cmd_buffer, fb->query_pool, 0, 1);
 		vkapi.vkCmdBeginQuery(cmd_buffer, fb->query_pool, 0, 0);
 	}
+
+	VkViewport viewports[] = {
+		{
+			.x = 0,
+			.y = 0,
+			.width = fb->width,
+			.height = fb->height,
+			.minDepth = 0.0f,
+			.maxDepth = 1.0f,
+		}
+	};
+
+	vkapi.vkCmdSetViewport(cmd_buffer, 0, 1, viewports);
+
+	VkRect2D scissors[] = {
+		{
+			.offset = { .x = 0, .y = 0 },
+			.extent = { .width = fb->width, .height = fb->height },
+		}
+	};
+
+	vkapi.vkCmdSetScissor(cmd_buffer, 0, 1, scissors);
 
 	VkClearValue clear_values[] = {
 		{ .color = { .float32 = { 0.0f, 0.0f, 0.5f, 1.0f } } }

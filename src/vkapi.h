@@ -59,6 +59,8 @@ struct vkapi {
 	DEF_DEV_PROC(vkCmdEndQuery);
 	DEF_DEV_PROC(vkCmdEndRenderPass);
 	DEF_DEV_PROC(vkCmdResetQueryPool);
+	DEF_DEV_PROC(vkCmdSetScissor);
+	DEF_DEV_PROC(vkCmdSetViewport);
 	DEF_DEV_PROC(vkCreateBuffer);
 	DEF_DEV_PROC(vkCreateCommandPool);
 	DEF_DEV_PROC(vkCreateDescriptorPool);

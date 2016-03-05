@@ -424,6 +424,7 @@ void init_model(struct renderer * renderer) {
 
 	VkCommandPoolCreateInfo cmd_pool_ci = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		.queueFamilyIndex = vkapi.g_queue_family,
 	};
 

@@ -112,6 +112,7 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkCmdBindVertexBuffers);
 	GET_DEV_PROC(vkCmdDraw);
 	GET_DEV_PROC(vkCmdEndRenderPass);
+	GET_DEV_PROC(vkCmdPipelineBarrier);
 	GET_DEV_PROC(vkCmdResetQueryPool);
 	GET_DEV_PROC(vkCmdSetScissor);
 	GET_DEV_PROC(vkCmdSetViewport);
@@ -119,6 +120,7 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkCreateCommandPool);
 	GET_DEV_PROC(vkCreateDescriptorPool);
 	GET_DEV_PROC(vkCreateDescriptorSetLayout);
+	GET_DEV_PROC(vkCreateFence);
 	GET_DEV_PROC(vkCreateFramebuffer);
 	GET_DEV_PROC(vkCreateGraphicsPipelines);
 	GET_DEV_PROC(vkCreateImageView);
@@ -133,6 +135,7 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkDestroyDescriptorPool);
 	GET_DEV_PROC(vkDestroyDescriptorSetLayout);
 	GET_DEV_PROC(vkDestroyDevice);
+	GET_DEV_PROC(vkDestroyFence);
 	GET_DEV_PROC(vkDestroyFramebuffer);
 	GET_DEV_PROC(vkDestroyImageView);
 	GET_DEV_PROC(vkDestroyPipeline);
@@ -153,10 +156,13 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkMapMemory);
 	GET_DEV_PROC(vkQueuePresentKHR);
 	GET_DEV_PROC(vkQueueSubmit);
+	GET_DEV_PROC(vkResetCommandBuffer);
 	GET_DEV_PROC(vkResetCommandPool);
 	GET_DEV_PROC(vkResetDescriptorPool);
+	GET_DEV_PROC(vkResetFences);
 	GET_DEV_PROC(vkUnmapMemory);
 	GET_DEV_PROC(vkUpdateDescriptorSets);
+	GET_DEV_PROC(vkWaitForFences);
 
 	if (options.stats) {
 		GET_DEV_PROC(vkCmdBeginQuery);

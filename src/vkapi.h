@@ -58,6 +58,7 @@ struct vkapi {
 	DEF_DEV_PROC(vkCmdDraw);
 	DEF_DEV_PROC(vkCmdEndQuery);
 	DEF_DEV_PROC(vkCmdEndRenderPass);
+	DEF_DEV_PROC(vkCmdPipelineBarrier);
 	DEF_DEV_PROC(vkCmdResetQueryPool);
 	DEF_DEV_PROC(vkCmdSetScissor);
 	DEF_DEV_PROC(vkCmdSetViewport);
@@ -65,6 +66,7 @@ struct vkapi {
 	DEF_DEV_PROC(vkCreateCommandPool);
 	DEF_DEV_PROC(vkCreateDescriptorPool);
 	DEF_DEV_PROC(vkCreateDescriptorSetLayout);
+	DEF_DEV_PROC(vkCreateFence);
 	DEF_DEV_PROC(vkCreateFramebuffer);
 	DEF_DEV_PROC(vkCreateGraphicsPipelines);
 	DEF_DEV_PROC(vkCreateImageView);
@@ -79,6 +81,7 @@ struct vkapi {
 	DEF_DEV_PROC(vkDestroyDescriptorPool);
 	DEF_DEV_PROC(vkDestroyDescriptorSetLayout);
 	DEF_DEV_PROC(vkDestroyDevice);
+	DEF_DEV_PROC(vkDestroyFence);
 	DEF_DEV_PROC(vkDestroyFramebuffer);
 	DEF_DEV_PROC(vkDestroyImageView);
 	DEF_DEV_PROC(vkDestroyPipeline);
@@ -99,10 +102,13 @@ struct vkapi {
 	DEF_DEV_PROC(vkMapMemory);
 	DEF_DEV_PROC(vkQueuePresentKHR);
 	DEF_DEV_PROC(vkQueueSubmit);
+	DEF_DEV_PROC(vkResetCommandBuffer);
 	DEF_DEV_PROC(vkResetCommandPool);
 	DEF_DEV_PROC(vkResetDescriptorPool);
+	DEF_DEV_PROC(vkResetFences);
 	DEF_DEV_PROC(vkUnmapMemory);
 	DEF_DEV_PROC(vkUpdateDescriptorSets);
+	DEF_DEV_PROC(vkWaitForFences);
 
 #ifdef HAVE_XCB
 	DEF_INST_PROC(vkCreateXcbSurfaceKHR);

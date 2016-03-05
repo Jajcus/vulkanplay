@@ -27,6 +27,8 @@ struct framebuffer {
 	VkQueryPool query_pool;
 };
 
+#define FRAME_LAG 2
+
 struct renderer {
 	struct plat_surface * surface;
 
@@ -35,6 +37,8 @@ struct renderer {
 	uint32_t swapchain_image_count;
 
 	VkSemaphore image_acquired_sem, rendering_complete_sem;
+	VkFence frame_fences[FRAME_LAG];
+	int frame_fences_ready[FRAME_LAG];
 
 	VkExtent2D fb_extent;
 	uint32_t fb_count;
@@ -113,7 +117,11 @@ struct model {
 	VkDeviceMemory memory;
 	VkBuffer buffer;
 	VkDescriptorSet descriptor_set;
+
+	VkFence cmd_buf_fence;
+	int cmd_buf_fence_ready;
 	VkCommandPool command_pool;
+	VkCommandBuffer command_buffer;
 
 	VkShaderModule vs_module;
 	VkShaderModule fs_module;
@@ -146,11 +154,9 @@ void normal(vec4 result, const vec4 a, const vec4 b, const vec4 c) {
 	result[3] = 0;
 }
 
-void init_model(struct renderer * renderer, uint32_t image_index) {
+void init_model(struct renderer * renderer) {
 
 	uint32_t i;
-
-	struct framebuffer * fb = &renderer->framebuffers[image_index];
 
 	vkapi.vkResetDescriptorPool(vkapi.device, renderer->descriptor_pool, 0);
 
@@ -422,6 +428,21 @@ void init_model(struct renderer * renderer, uint32_t image_index) {
 	};
 
 	vkapi.vkCreateCommandPool(vkapi.device, &cmd_pool_ci, NULL, &model.command_pool);
+
+	VkFenceCreateInfo fence_ci = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
+	};
+
+	vkapi.vkCreateFence(vkapi.device, &fence_ci, NULL, &model.cmd_buf_fence);
+
+	VkCommandBufferAllocateInfo cmd_buf_ai = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = model.command_pool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1,
+	};
+
+	vkapi.vkAllocateCommandBuffers(vkapi.device, &cmd_buf_ai, &model.command_buffer);
 };
 
 void render_model(struct renderer * renderer, uint32_t image_index) {
@@ -466,24 +487,43 @@ void render_model(struct renderer * renderer, uint32_t image_index) {
 
 	memcpy(model.mapped_memory, &uniform_buffer, sizeof(uniform_buffer));
 
-	vkapi.vkResetCommandPool(vkapi.device, model.command_pool, 0);
+	if (model.cmd_buf_fence_ready) {
+		vkapi.vkWaitForFences(vkapi.device, 1, &model.cmd_buf_fence, VK_TRUE, UINT64_MAX);
+		vkapi.vkResetFences(vkapi.device, 1, &model.cmd_buf_fence);
+	}
 
-	VkCommandBufferAllocateInfo cmd_buf_ai = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = model.command_pool,
-		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1,
-	};
-
-	VkCommandBuffer cmd_buffer;
-
-	vkapi.vkAllocateCommandBuffers(vkapi.device, &cmd_buf_ai, &cmd_buffer);
+	VkCommandBuffer cmd_buffer = model.command_buffer;
+	vkapi.vkResetCommandBuffer(cmd_buffer, 0);
 
 	VkCommandBufferBeginInfo cmd_buf_bi = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 	};
 
 	vkapi.vkBeginCommandBuffer(cmd_buffer, &cmd_buf_bi);
+
+	int same_queue = vkapi.p_queue_family == vkapi.g_queue_family;
+	const VkImageMemoryBarrier acquire_image_b = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT,
+		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.srcQueueFamilyIndex = same_queue ? VK_QUEUE_FAMILY_IGNORED : vkapi.p_queue_family,
+		.dstQueueFamilyIndex = same_queue ? VK_QUEUE_FAMILY_IGNORED : vkapi.g_queue_family,
+		.image = renderer->swapchain_images[image_index],
+		.subresourceRange =  {
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.levelCount = 1,
+			.layerCount = 1,
+			},
+	};
+
+	vkapi.vkCmdPipelineBarrier(cmd_buffer,
+					VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+					VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+					VK_DEPENDENCY_BY_REGION_BIT,
+					0, NULL, 0, NULL,
+					1, &acquire_image_b);
 
 	if (fb->query_pool) {
 		vkapi.vkCmdResetQueryPool(cmd_buffer, fb->query_pool, 0, 1);
@@ -558,12 +598,36 @@ void render_model(struct renderer * renderer, uint32_t image_index) {
 		vkapi.vkCmdEndQuery(cmd_buffer, fb->query_pool, 0);
 	}
 
+	const VkImageMemoryBarrier release_image_b = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.srcQueueFamilyIndex = same_queue ? VK_QUEUE_FAMILY_IGNORED : vkapi.g_queue_family,
+		.dstQueueFamilyIndex = same_queue ? VK_QUEUE_FAMILY_IGNORED : vkapi.p_queue_family,
+		.image = renderer->swapchain_images[image_index],
+		.subresourceRange =  {
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.levelCount = 1,
+			.layerCount = 1,
+			},
+	};
+
+	vkapi.vkCmdPipelineBarrier(cmd_buffer,
+					VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+					VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+					VK_DEPENDENCY_BY_REGION_BIT,
+					0, NULL, 0, NULL,
+					1, &release_image_b);
+
 	vkapi.vkEndCommandBuffer(cmd_buffer);
 
-	result = vkapi.vkQueueSubmit(vkapi.g_queue, 1, submits, VK_NULL_HANDLE);
+	result = vkapi.vkQueueSubmit(vkapi.g_queue, 1, submits, model.cmd_buf_fence);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkQueueSubmit failed: %i\n", result);
 	}
+	model.cmd_buf_fence_ready = 1;
 };
 
 void destroy_model(struct renderer * renderer) {
@@ -588,6 +652,8 @@ void destroy_model(struct renderer * renderer) {
 	model.pipeline_layout = NULL;
 	if (model.set_layout) vkapi.vkDestroyDescriptorSetLayout(vkapi.device, model.set_layout, NULL);
 	model.set_layout = NULL;
+	if (model.cmd_buf_fence) vkapi.vkDestroyFence(vkapi.device, model.cmd_buf_fence, NULL);
+	model.cmd_buf_fence = NULL;
 };
 
 VkResult render_init(struct renderer * renderer) {
@@ -677,7 +743,9 @@ error:
 void render_deinit(struct renderer * renderer) {
 
 	if (renderer->descriptor_pool) vkapi.vkDestroyDescriptorPool(vkapi.device, renderer->descriptor_pool, NULL);
+	renderer->descriptor_pool = NULL;
 	if (renderer->render_pass) vkapi.vkDestroyRenderPass(vkapi.device, renderer->render_pass, NULL);
+	renderer->render_pass = NULL;
 }
 
 static uint32_t create_swapchain(struct renderer *renderer) {
@@ -740,7 +808,6 @@ static uint32_t create_swapchain(struct renderer *renderer) {
 		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.preTransform = s_caps.currentTransform,
 		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-		//.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
 		.presentMode = mode,
 		.oldSwapchain = renderer->swapchain,
 	};
@@ -871,6 +938,7 @@ static struct framebuffer * create_framebuffers(struct renderer * renderer) {
 		}
 
 	}
+	renderer->fb_count = renderer->swapchain_image_count;
 	return framebuffers;
 error:
 	destroy_framebuffers(renderer);
@@ -882,7 +950,8 @@ void * render_loop(void * arg) {
 	struct renderer * renderer = (struct renderer *) arg;
 
 	VkResult result;
-	uint32_t image_index;
+	uint32_t image_index, frame_index;
+	int i;
 
 	const VkSemaphoreCreateInfo sem_ci = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -900,6 +969,16 @@ void * render_loop(void * arg) {
 	}
 	printf("image_acquired_sem = %lx, rendering_complete_sem = %lx\n",
 			(long)renderer->image_acquired_sem, (long)renderer->rendering_complete_sem);
+	VkFenceCreateInfo fence_ci = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
+	};
+	for(i = 0; i < FRAME_LAG; i++) {
+		result = vkapi.vkCreateFence(vkapi.device, &fence_ci, NULL, &renderer->frame_fences[i]);
+		if (result != VK_SUCCESS) {
+			fprintf(stderr, "vkCreateFence failed: %i\n", result);
+			goto finish;
+		}
+	}
 
 	result = render_init(renderer);
 	if (result != VK_SUCCESS) {
@@ -910,6 +989,10 @@ void * render_loop(void * arg) {
 
 	struct timeval last_tv, tv;
 	gettimeofday(&last_tv, NULL);
+
+	frame_index = 0;
+
+	init_model(renderer);
 
 	while(!exit_requested()) {
 		pthread_mutex_lock(&renderer->mutex);
@@ -927,12 +1010,19 @@ void * render_loop(void * arg) {
 			pthread_mutex_unlock(&renderer->mutex);
 			if (stop) break;
 
+			if (renderer->frame_fences_ready[frame_index]) {
+				// Ensure no more than FRAME_LAG presentations are outstanding
+				vkapi.vkWaitForFences(vkapi.device, 1, &renderer->frame_fences[frame_index], VK_TRUE, UINT64_MAX);
+				vkapi.vkResetFences(vkapi.device, 1, &renderer->frame_fences[frame_index]);
+			}
+
 			result = vkapi.vkAcquireNextImageKHR(vkapi.device,
 							     renderer->swapchain,
 							     50000000,
 							     renderer->image_acquired_sem,
-							     VK_NULL_HANDLE,
+							     renderer->frame_fences[frame_index],
 							     &image_index);
+			renderer->frame_fences_ready[frame_index] = 1;
 			if (result == VK_ERROR_OUT_OF_DATE_KHR) {
 				fprintf(stderr, "swapchain out of date, breaking\n");
 				break;
@@ -947,7 +1037,6 @@ void * render_loop(void * arg) {
 				fprintf(stderr, "vkAcquireNextImageKHR failed: %i\n", result);
 				goto finish;
 			}
-			init_model(renderer, image_index);
 			render_model(renderer, image_index);
 			VkPresentInfoKHR pi = {
 				.sType =  VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -970,7 +1059,6 @@ void * render_loop(void * arg) {
 				fprintf(stderr, "vkQueuePresentKHR failed: %i\n", result);
 				goto finish;
 			}
-			vkapi.vkDeviceWaitIdle(vkapi.device);
 			VkQueryPool qp = renderer->framebuffers[image_index].query_pool;
 			if (qp) {
 				uint64_t data[6];
@@ -983,7 +1071,8 @@ void * render_loop(void * arg) {
 				printf("clipping primitives:        %5lli\n", (long long) data[4]);
 				printf("fragment shader invocations:%5lli\n", (long long) data[5]);
 			}
-			destroy_model(renderer);
+			frame_index += 1;
+			frame_index %= FRAME_LAG;
 			frames++;
 			gettimeofday(&tv, NULL);
 			long seconds = tv.tv_sec - last_tv.tv_sec;
@@ -1000,13 +1089,18 @@ void * render_loop(void * arg) {
 finish:
 	fprintf(stderr, "render thread cleaning up...\n");
 	vkapi.vkDeviceWaitIdle(vkapi.device);
+	if (renderer->framebuffers) destroy_framebuffers(renderer);
+	if (renderer->swapchain) vkapi.vkDestroySwapchainKHR(vkapi.device, renderer->swapchain, NULL);
+	if (renderer->swapchain_images) free(renderer->swapchain_images);
 	destroy_model(renderer);
 	render_deinit(renderer);
 	vkapi.vkDestroySemaphore(vkapi.device, renderer->image_acquired_sem, NULL);
 	vkapi.vkDestroySemaphore(vkapi.device, renderer->rendering_complete_sem, NULL);
-	if (renderer->framebuffers) destroy_framebuffers(renderer);
-	if (renderer->swapchain) vkapi.vkDestroySwapchainKHR(vkapi.device, renderer->swapchain, NULL);
-	if (renderer->swapchain_images) free(renderer->swapchain_images);
+	for(i = 0; i < FRAME_LAG; i++) {
+		if (renderer->frame_fences[i]) {
+			vkapi.vkDestroyFence(vkapi.device, renderer->frame_fences[i], NULL);
+		}
+	}
 	request_exit();
 	return NULL;
 }

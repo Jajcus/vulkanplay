@@ -353,7 +353,7 @@ void init_model(struct renderer * renderer, uint32_t image_index) {
 
 	model.vertex_offset = sizeof(struct uniform_buffer);
 	model.normal_offset = model.vertex_offset + sizeof(tetrahedron_vertices);
-	model.color_offset = model.color_offset + sizeof(tetrahedron_vertices);
+	model.color_offset = model.normal_offset + sizeof(tetrahedron_vertices);
 	uint32_t mem_size = model.color_offset + sizeof(tetrahedron_colors);
 
 	for (i = 0; i < vkapi.memory_properties.memoryTypeCount; i++) {

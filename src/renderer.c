@@ -840,8 +840,39 @@ static uint32_t create_swapchain(struct renderer *renderer) {
 	renderer->swapchain = swapchain;
 	renderer->swapchain_image_count = image_count;
 
+	const VkSemaphoreCreateInfo sem_ci = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+	};
+
+	if (renderer->image_acquired_sem) {
+		vkapi.vkDestroySemaphore(vkapi.device, renderer->image_acquired_sem, NULL);
+		renderer->image_acquired_sem = VK_NULL_HANDLE;
+	}
+	result = vkapi.vkCreateSemaphore(vkapi.device, &sem_ci, NULL, &renderer->image_acquired_sem);
+	if (result != VK_SUCCESS) {
+		fprintf(stderr, "vkCreateSemaphore failed: %i\n", result);
+		goto error;
+	}
+	if (renderer->rendering_complete_sem) {
+		vkapi.vkDestroySemaphore(vkapi.device, renderer->rendering_complete_sem, NULL);
+		renderer->rendering_complete_sem = VK_NULL_HANDLE;
+	}
+	result = vkapi.vkCreateSemaphore(vkapi.device, &sem_ci, NULL, &renderer->rendering_complete_sem);
+	if (result != VK_SUCCESS) {
+		fprintf(stderr, "vkCreateSemaphore failed: %i\n", result);
+		goto error;
+	}
+
 	return image_count;
 error:
+	if (renderer->image_acquired_sem) {
+		vkapi.vkDestroySemaphore(vkapi.device, renderer->image_acquired_sem, NULL);
+		renderer->image_acquired_sem = VK_NULL_HANDLE;
+	}
+	if (renderer->rendering_complete_sem) {
+		vkapi.vkDestroySemaphore(vkapi.device, renderer->rendering_complete_sem, NULL);
+		renderer->rendering_complete_sem = VK_NULL_HANDLE;
+	}
 	if (swapchain) vkapi.vkDestroySwapchainKHR(vkapi.device, swapchain, NULL);
 	if (renderer->swapchain) {
 		vkapi.vkDestroySwapchainKHR(vkapi.device, renderer->swapchain, NULL);
@@ -854,6 +885,27 @@ error:
 		renderer->swapchain_image_count = 0;
 	}
 	return 0;
+}
+
+static void destroy_swapchain(struct renderer * renderer) {
+
+	if (renderer->image_acquired_sem) {
+		vkapi.vkDestroySemaphore(vkapi.device, renderer->image_acquired_sem, NULL);
+		renderer->image_acquired_sem = VK_NULL_HANDLE;
+	}
+	if (renderer->rendering_complete_sem) {
+		vkapi.vkDestroySemaphore(vkapi.device, renderer->rendering_complete_sem, NULL);
+		renderer->rendering_complete_sem = VK_NULL_HANDLE;
+	}
+	if (renderer->swapchain) {
+		vkapi.vkDestroySwapchainKHR(vkapi.device, renderer->swapchain, NULL);
+		renderer->swapchain = VK_NULL_HANDLE;
+	}
+	if (renderer->swapchain_images) {
+		free(renderer->swapchain_images);
+		renderer->swapchain_images = NULL;
+		renderer->swapchain_image_count = 0;
+	}
 }
 
 static void destroy_framebuffers(struct renderer * renderer) {
@@ -954,22 +1006,6 @@ void * render_loop(void * arg) {
 	uint32_t image_index, frame_index;
 	int i;
 
-	const VkSemaphoreCreateInfo sem_ci = {
-		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-	};
-
-	result = vkapi.vkCreateSemaphore(vkapi.device, &sem_ci, NULL, &renderer->image_acquired_sem);
-	if (result != VK_SUCCESS) {
-		fprintf(stderr, "vkCreateSemaphore failed: %i\n", result);
-		goto finish;
-	}
-	result = vkapi.vkCreateSemaphore(vkapi.device, &sem_ci, NULL, &renderer->rendering_complete_sem);
-	if (result != VK_SUCCESS) {
-		fprintf(stderr, "vkCreateSemaphore failed: %i\n", result);
-		goto finish;
-	}
-	printf("image_acquired_sem = %lx, rendering_complete_sem = %lx\n",
-			(long)renderer->image_acquired_sem, (long)renderer->rendering_complete_sem);
 	VkFenceCreateInfo fence_ci = {
 		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
 	};
@@ -1106,17 +1142,18 @@ void * render_loop(void * arg) {
 				}
 			}
 		}
+		vkapi.vkDeviceWaitIdle(vkapi.device);
+		destroy_framebuffers(renderer);
 	}
 finish:
 	fprintf(stderr, "render thread cleaning up...\n");
 	vkapi.vkDeviceWaitIdle(vkapi.device);
-	if (renderer->framebuffers) destroy_framebuffers(renderer);
-	if (renderer->swapchain) vkapi.vkDestroySwapchainKHR(vkapi.device, renderer->swapchain, NULL);
-	if (renderer->swapchain_images) free(renderer->swapchain_images);
+	destroy_framebuffers(renderer);
+	destroy_swapchain(renderer);
 	destroy_model(renderer);
 	render_deinit(renderer);
-	vkapi.vkDestroySemaphore(vkapi.device, renderer->image_acquired_sem, NULL);
-	vkapi.vkDestroySemaphore(vkapi.device, renderer->rendering_complete_sem, NULL);
+	if (renderer->image_acquired_sem) vkapi.vkDestroySemaphore(vkapi.device, renderer->image_acquired_sem, NULL);
+	if (renderer->rendering_complete_sem) vkapi.vkDestroySemaphore(vkapi.device, renderer->rendering_complete_sem, NULL);
 	for(i = 0; i < FRAME_LAG; i++) {
 		if (renderer->frame_fences[i]) {
 			vkapi.vkDestroyFence(vkapi.device, renderer->frame_fences[i], NULL);

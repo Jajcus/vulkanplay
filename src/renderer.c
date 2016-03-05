@@ -438,7 +438,7 @@ void render_model(struct renderer * renderer, uint32_t image_index) {
 
 	vec3 origin = {0, 0, 0};
 	vec3 up = {0.0f, -1.0f, 0.0};
-	vec3 eye_base = {-0.5f, 1.0f, 6.0f};
+	vec4 eye_base = {-0.5f, 1.0f, 6.0f, 1.0f};
 	static int view_angle_y = 0, view_angle_x = 0;
 	vec4 light_pos = { 2.0f,  2.0f, 10.0f, 1.0f };
 

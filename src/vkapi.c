@@ -331,7 +331,7 @@ int vkapi_init_device(struct plat_surface * surface) {
 		fprintf(stderr, "vkGetPhysicalDeviceSurfaceFormatsKHR failed: %i\n", result);
 		goto error;
 	}
-	surface->s_formats = (VkSurfaceFormatKHR *)calloc(surface->s_formats_count, sizeof(vkGetPhysicalDeviceSurfaceFormatsKHR));
+	surface->s_formats = (VkSurfaceFormatKHR *)calloc(surface->s_formats_count, sizeof(VkSurfaceFormatKHR));
 	result = vkapi.vkGetPhysicalDeviceSurfaceFormatsKHR(vkapi.physical_device, vk_surface, &surface->s_formats_count, surface->s_formats);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkGetPhysicalDeviceSurfaceFormatsKHR failed: %i\n", result);
@@ -342,7 +342,7 @@ int vkapi_init_device(struct plat_surface * surface) {
 		fprintf(stderr, "vkGetPhysicalDeviceSurfacePresentModesKHR failed: %i\n", result);
 		goto error;
 	}
-	surface->s_modes = (VkPresentModeKHR *)calloc(surface->s_modes_count, sizeof(vkGetPhysicalDeviceSurfacePresentModesKHR));
+	surface->s_modes = (VkPresentModeKHR *)calloc(surface->s_modes_count, sizeof(VkPresentModeKHR));
 	result = vkapi.vkGetPhysicalDeviceSurfacePresentModesKHR(vkapi.physical_device, vk_surface, &surface->s_modes_count, surface->s_modes);
 	if (result != VK_SUCCESS) {
 		fprintf(stderr, "vkGetPhysicalDeviceSurfacePresentModesKHR failed: %i\n", result);

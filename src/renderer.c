@@ -356,6 +356,18 @@ void init_model(struct renderer * renderer, uint32_t image_index) {
 	model.color_offset = model.normal_offset + sizeof(tetrahedron_vertices);
 	uint32_t mem_size = model.color_offset + sizeof(tetrahedron_colors);
 
+	VkBufferCreateInfo buffer_ci = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = mem_size,
+		.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+	};
+
+	vkapi.vkCreateBuffer(vkapi.device, &buffer_ci, NULL, &model.buffer);
+
+	VkMemoryRequirements mem_req;
+
+	vkapi.vkGetBufferMemoryRequirements(vkapi.device, model.buffer, &mem_req);
+
 	for (i = 0; i < vkapi.memory_properties.memoryTypeCount; i++) {
 		if ((vkapi.memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
 			break;
@@ -369,7 +381,7 @@ void init_model(struct renderer * renderer, uint32_t image_index) {
 
 	VkMemoryAllocateInfo mem_ai = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize = mem_size,
+		.allocationSize = mem_req.size,
 		.memoryTypeIndex = i,
 	};
 
@@ -380,14 +392,6 @@ void init_model(struct renderer * renderer, uint32_t image_index) {
 	memcpy(model.mapped_memory + model.vertex_offset, tetrahedron_vertices, sizeof(tetrahedron_vertices));
 	memcpy(model.mapped_memory + model.normal_offset, normals, sizeof(tetrahedron_vertices));
 	memcpy(model.mapped_memory + model.color_offset, tetrahedron_colors, sizeof(tetrahedron_colors));
-
-	VkBufferCreateInfo buffer_ci = {
-		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size = mem_size,
-		.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-	};
-
-	vkapi.vkCreateBuffer(vkapi.device, &buffer_ci, NULL, &model.buffer);
 
 	vkapi.vkBindBufferMemory(vkapi.device, model.buffer, model.memory, 0);
 

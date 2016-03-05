@@ -144,6 +144,7 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkEndCommandBuffer);
 	GET_DEV_PROC(vkFreeDescriptorSets);
 	GET_DEV_PROC(vkFreeMemory);
+	GET_DEV_PROC(vkGetBufferMemoryRequirements);
 	GET_DEV_PROC(vkGetDeviceQueue);
 	GET_DEV_PROC(vkGetQueryPoolResults);
 	GET_DEV_PROC(vkGetSwapchainImagesKHR);

@@ -90,6 +90,7 @@ struct vkapi {
 	DEF_DEV_PROC(vkEndCommandBuffer);
 	DEF_DEV_PROC(vkFreeDescriptorSets);
 	DEF_DEV_PROC(vkFreeMemory);
+	DEF_DEV_PROC(vkGetBufferMemoryRequirements);
 	DEF_DEV_PROC(vkGetDeviceQueue);
 	DEF_DEV_PROC(vkGetQueryPoolResults);
 	DEF_DEV_PROC(vkGetSwapchainImagesKHR);

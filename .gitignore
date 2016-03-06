@@ -4,6 +4,7 @@
 .*.swp
 .deps
 build
+linalg_test
 log
 src/Makefile
 src/*/Makefile

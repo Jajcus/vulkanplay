@@ -5,12 +5,12 @@
 #include <pthread.h>
 
 struct material {
-	vec4 color;
+	Vec4 color;
 };
 
 struct scene_object {
 	struct model * model;
-	mat4x4 model_matrix;
+	Mat4 model_matrix;
 
 	/* scene state - set by scene, cleared by renderer */
 	struct {
@@ -27,9 +27,9 @@ struct scene_object {
 };
 
 struct scene {
-	vec3 eye;
-	vec3 look_at;
-	vec4 light_pos;
+	Vec3 eye;
+	Vec3 look_at;
+	Vec4 light_pos;
 
 	struct scene_object * objects;
 	uint32_t objects_len;
@@ -60,8 +60,8 @@ struct scene * create_scene(void);
 #define scene_lock(scene)   pthread_mutex_lock(&(scene)->mutex)
 #define scene_unlock(scene) pthread_mutex_unlock(&(scene)->mutex)
 
-void scene_add_object(struct scene * scene, struct model * model, mat4x4 matrix);
-void scene_set_eye(struct scene * scene, vec3 eye, vec3 look_at);
+void scene_add_object(struct scene * scene, struct model * model, Mat4 matrix);
+void scene_set_eye(struct scene * scene, Vec3 eye, Vec3 look_at);
 void destroy_scene(struct scene * scene);
 
 #endif

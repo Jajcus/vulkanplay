@@ -11,7 +11,7 @@
 #include "surface.h"
 #include "renderer.h"
 #include "scene.h"
-#include "linmath.h"
+#include "linalg.h"
 
 #include "models/tetrahedron.h"
 
@@ -142,8 +142,8 @@ void parse_args(int argc, char **argv) {
 }
 
 static struct scene * scene = NULL;
-static vec4 eye_base = {-0.5f, 1.0f, 6.0f, 1.0f};
-static vec4 look_at = {0.0f, 0.0f, 0.0f};
+static Vec4 eye_base = {-0.5f, 1.0f, 6.0f, 1.0f};
+static Vec3 look_at = {0.0f, 0.0f, 0.0f};
 static float y_angle = 0, x_angle = 0;
 
 void on_left_click(float x, float y) {
@@ -157,16 +157,15 @@ void on_left_click(float x, float y) {
 	y_angle = fmod(y_angle, 360.0);
 	x_angle = fmod(x_angle, 360.0);
 
-	vec4 eye;
-        mat4x4 identity, rot1, rot2;
-        mat4x4_identity(identity);
+	Vec34 eye;
+        Mat4 rot1, rot2;
 
-        mat4x4_rotate_Y(rot1, identity, (float)degreesToRadians((float)y_angle));
-        mat4x4_rotate_X(rot2, rot1, (float)degreesToRadians((float)x_angle));
+        rot1 = mat4_rotate_Y(MAT4_IDENTITY, (float)deg_to_rad((float)y_angle));
+        rot2 = mat4_rotate_X(rot1, (float)deg_to_rad((float)x_angle));
 
-	mat4x4_mul_vec4(eye, rot2, eye_base);
+	eye.v4 = mat4_mul_vec4(rot2, eye_base);
 
-	scene_set_eye(scene, eye, look_at);
+	scene_set_eye(scene, eye.v3, look_at);
 }
 
 int main(int argc, char **argv) {
@@ -202,10 +201,7 @@ int main(int argc, char **argv) {
 	scene = create_scene();
 	struct model * tetrahedron = create_tetrahedron(0);
 
-	mat4x4 identity;
-	mat4x4_identity(identity);
-
-	scene_add_object(scene, tetrahedron, identity);
+	scene_add_object(scene, tetrahedron, MAT4_IDENTITY);
 
 	struct renderer * renderer = start_renderer(surf, scene);
 	if (!renderer) {

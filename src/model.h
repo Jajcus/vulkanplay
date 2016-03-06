@@ -1,12 +1,12 @@
 #ifndef model_h
 #define model_h
 
-#include "linmath.h"
+#include "linalg.h"
 #include <stdint.h>
 
 struct vertex_data {
-	vec4 pos;
-	vec4 normal;
+	Vec4 pos;
+	Vec4 normal;
 	uint32_t material, a, b, c;
 };
 

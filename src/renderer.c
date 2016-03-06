@@ -8,7 +8,6 @@
 #include <assert.h>
 #include <sys/time.h>
 
-#include "linmath.h"
 #include "printmath.h"
 
 #include "vkapi.h"
@@ -72,8 +71,8 @@ struct renderer {
 
 	unsigned char * mapped_memory;
 
-	mat4x4 p_matrix;
-	mat4x4 v_matrix;
+	Mat4 p_matrix;
+	Mat4 v_matrix;
 
 	pthread_t thread;
 	pthread_mutex_t mutex;
@@ -81,38 +80,20 @@ struct renderer {
 };
 
 struct uniform_buffer {
-	vec4 light_pos;
+	Vec4 light_pos;
 	struct material materials[];
 };
 
 struct instance_data {
-	mat4x4 mv_matrix;
-	mat4x4 mvp_matrix;
-	mat4x4 normal_matrix;
+	Mat4 mv_matrix;
+	Mat4 mvp_matrix;
+	Mat4 normal_matrix;
 };
 
 extern const unsigned char main_frag_spv[];
 extern unsigned int main_frag_spv_len;
 extern const unsigned char main_vert_spv[];
 extern unsigned int main_vert_spv_len;
-
-void normal(vec4 result, const vec4 a, const vec4 b, const vec4 c) {
-
-	vec4 U, V;
-
-	U[0] = b[0] - a[0];
-	U[1] = b[1] - a[1];
-	U[2] = b[2] - a[2];
-
-	V[0] = c[0] - a[0];
-	V[1] = c[1] - a[1];
-	V[2] = c[2] - a[2];
-
-	result[0] = U[1]*V[2] - U[2]*V[1];
-	result[1] = U[2]*V[0] - U[0]*V[2];
-	result[2] = U[0]*V[1] - U[1]*V[0];
-	result[3] = 0;
-}
 
 void create_pipeline(struct renderer * renderer) {
 
@@ -192,27 +173,27 @@ void create_pipeline(struct renderer * renderer) {
 		// in_position
 		{ .location = 0, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 0, },
 		// in_normal
-		{ .location = 1, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(vec4), },
+		{ .location = 1, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(Vec4), },
 		// in_material
-		{ .location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_UINT,   .offset = 2 * sizeof(vec4), },
+		{ .location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_UINT,   .offset = 2 * sizeof(Vec4), },
 
 		// mv_matrix
 		{ .location = 4, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 0, },
-		{ .location = 5, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(vec4), },
-		{ .location = 6, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(vec4), },
-		{ .location = 7, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 3 * sizeof(vec4), },
+		{ .location = 5, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(Vec4), },
+		{ .location = 6, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(Vec4), },
+		{ .location = 7, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 3 * sizeof(Vec4), },
 
 		// mvp_matrix
-		{ .location = 8, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(mat4x4), },
-		{ .location = 9, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(mat4x4) + sizeof(vec4), },
-		{ .location = 10, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(mat4x4) + 2 * sizeof(vec4), },
-		{ .location = 11, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(mat4x4) + 3 * sizeof(vec4), },
+		{ .location = 8, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(Mat4), },
+		{ .location = 9, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(Mat4) + sizeof(Vec4), },
+		{ .location = 10, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(Mat4) + 2 * sizeof(Vec4), },
+		{ .location = 11, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(Mat4) + 3 * sizeof(Vec4), },
 
 		// normal_matrix
-		{ .location = 12, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(mat4x4), },
-		{ .location = 13, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(mat4x4) + sizeof(vec4), },
-		{ .location = 14, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(mat4x4) + 2 * sizeof(vec4), },
-		{ .location = 15, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(mat4x4) + 3 * sizeof(vec4), },
+		{ .location = 12, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(Mat4), },
+		{ .location = 13, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(Mat4) + sizeof(Vec4), },
+		{ .location = 14, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(Mat4) + 2 * sizeof(Vec4), },
+		{ .location = 15, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 2 * sizeof(Mat4) + 3 * sizeof(Vec4), },
 	};
 
 	VkPipelineVertexInputStateCreateInfo vis_ci = {
@@ -431,11 +412,11 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 	uint32_t i;
 	struct framebuffer * fb = &renderer->framebuffers[image_index];
 
-	vec3 up = {0.0f, -1.0f, 0.0};
+	Vec3 up = {0.0f, -1.0f, 0.0};
 
-	mat4x4_perspective(renderer->p_matrix, (float)degreesToRadians(45.0f), 1.0f, 1.0f, 100.0f);
+	renderer->p_matrix = mat4_perspective((float)deg_to_rad(45.0f), 1.0f, 1.0f, 100.0f);
 
-	mat4x4_look_at(renderer->v_matrix, renderer->scene->eye, renderer->scene->look_at, up);
+	renderer->v_matrix = mat4_look_at(renderer->scene->eye, renderer->scene->look_at, up);
 
 	for(i = 0; i < renderer->scene->objects_len; i++) {
 		struct scene_object * obj = &renderer->scene->objects[i];
@@ -443,15 +424,14 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 			renderer->mapped_memory + renderer->instance_offset +
 			obj->r.instance_index * sizeof(struct instance_data));
 
-		mat4x4_mul(inst->mv_matrix, renderer->v_matrix, obj->model_matrix);
-		mat4x4_mul(inst->mvp_matrix, renderer->p_matrix, inst->mv_matrix);
+		inst->mv_matrix = mat4_mul(renderer->v_matrix, obj->model_matrix);
+		inst->mvp_matrix = mat4_mul(renderer->p_matrix, inst->mv_matrix);
 
-		mat4x4 imv_matrix;
-		mat4x4_invert(imv_matrix, inst->mv_matrix);
-		mat4x4_transpose(inst->normal_matrix, imv_matrix);
+		Mat4 imv_matrix = mat4_invert(inst->mv_matrix);
+		inst->normal_matrix = mat4_transpose(imv_matrix);
 	}
 
-	memcpy(uniform_buffer.light_pos, renderer->scene->light_pos, sizeof(vec4));
+	uniform_buffer.light_pos = renderer->scene->light_pos;
 
 	memcpy(renderer->mapped_memory, &uniform_buffer, sizeof(uniform_buffer));
 

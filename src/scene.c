@@ -15,14 +15,14 @@ struct scene * create_scene(void) {
 	struct scene * scene = (struct scene *) calloc(1, sizeof(struct scene));
 	pthread_mutex_init(&scene->mutex, NULL);
 
-	scene->eye[0] = -0.5f;
-	scene->eye[1] =  1.0f;
-	scene->eye[2] =  6.0f;
+	scene->eye.x = -0.5f;
+	scene->eye.y =  1.0f;
+	scene->eye.z =  6.0f;
 
-	scene->light_pos[0] =  2.0f;
-	scene->light_pos[1] =  2.0f;
-	scene->light_pos[2] = 10.0f;
-	scene->light_pos[3] =  1.0f;
+	scene->light_pos.x =  2.0f;
+	scene->light_pos.y =  2.0f;
+	scene->light_pos.z = 10.0f;
+	scene->light_pos.w =  1.0f;
 
 	scene->objects_size = 10;
 	scene->objects = (struct scene_object *)calloc(scene->objects_size, sizeof(struct scene_object));
@@ -38,7 +38,7 @@ struct scene * create_scene(void) {
 	return scene;
 }
 
-void scene_add_object(struct scene * scene, struct model * model, mat4x4 matrix) {
+void scene_add_object(struct scene * scene, struct model * model, Mat4 matrix) {
 
 	scene_lock(scene);
 	if (scene->objects_len == scene->objects_size) {
@@ -51,7 +51,7 @@ void scene_add_object(struct scene * scene, struct model * model, mat4x4 matrix)
 	uint32_t i = scene->objects_len++;
 	struct scene_object * obj = &scene->objects[i];
 
-	memcpy(obj->model_matrix, matrix, sizeof(mat4x4));
+	obj->model_matrix = matrix;
 	obj->model = model;
 
 	obj->s.matrix_dirty = 1;
@@ -61,11 +61,11 @@ void scene_add_object(struct scene * scene, struct model * model, mat4x4 matrix)
 	scene_unlock(scene);
 }
 
-void scene_set_eye(struct scene * scene, vec3 eye, vec3 look_at) {
+void scene_set_eye(struct scene * scene, Vec3 eye, Vec3 look_at) {
 
 	scene_lock(scene);
-	memcpy(scene->eye, eye, sizeof(vec3));
-	memcpy(scene->look_at, look_at, sizeof(vec3));
+	scene->eye = eye;
+	scene->look_at = look_at;
 	scene_unlock(scene);
 }
 

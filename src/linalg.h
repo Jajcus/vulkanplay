@@ -28,6 +28,11 @@ typedef struct mat4 {
 	Vec4 c[4];
 } Mat4;
 
+typedef union vec34 {
+	Vec4 v4;
+	Vec3 v3;
+} Vec34;
+
 static inline Vec3 vec3_add(const Vec3 a, const Vec3 b) {
 	Vec3 r;
 	r.x = a.x + b.x;

@@ -25,7 +25,10 @@ typedef struct vec4 {
 } Vec4;
 
 typedef struct mat4 {
-	Vec4 c[4];
+	Vec4 a;
+	Vec4 b;
+	Vec4 c;
+	Vec4 d;
 } Mat4;
 
 typedef union vec34 {
@@ -150,11 +153,11 @@ static inline Vec4 vec4_reflect(const Vec4 v, const Vec4 n) {
 	return r;
 }
 
-static const Mat4 MAT4_IDENTITY = {{
+static const Mat4 MAT4_IDENTITY = {
 	{ 1, 0, 0, 0 },
 	{ 0, 1, 0, 0 },
 	{ 0, 0, 1, 0 },
-	{ 0, 0, 0, 1 }}};
+	{ 0, 0, 0, 1 }};
 
 static inline Mat4 mat4_transpose(const Mat4 n) {
 	Mat4 m;
@@ -169,31 +172,34 @@ static inline Mat4 mat4_transpose(const Mat4 n) {
 }
 static inline Mat4 mat4_add(const Mat4 a, const Mat4 b) {
 	Mat4 m;
-	int i;
-	for (i = 0; i < 4; ++i)
-		m.c[i] = vec4_add(a.c[i], b.c[i]);
+	m.a = vec4_add(a.a, b.a);
+	m.b = vec4_add(a.b, b.b);
+	m.c = vec4_add(a.c, b.c);
+	m.d = vec4_add(a.d, b.d);
 	return m;
 }
 static inline Mat4 mat4_sub(const Mat4 a, const Mat4 b) {
 	Mat4 m;
-	int i;
-	for (i = 0; i < 4; ++i)
-		m.c[i] = vec4_sub(a.c[i], b.c[i]);
+	m.a = vec4_sub(a.a, b.a);
+	m.b = vec4_sub(a.b, b.b);
+	m.c = vec4_sub(a.c, b.c);
+	m.d = vec4_sub(a.d, b.d);
 	return m;
 }
 static inline Mat4 mat4_scale(const Mat4 a, float k) {
 	Mat4 m;
-	int i;
-	for (i = 0; i < 4; ++i)
-		m.c[i] = vec4_scale(a.c[i], k);
+	m.a = vec4_scale(a.a, k);
+	m.b = vec4_scale(a.b, k);
+	m.c = vec4_scale(a.c, k);
+	m.d = vec4_scale(a.d, k);
 	return m;
 }
 static inline Mat4 mat4_scale_aniso(const Mat4 a, float x, float y, float z) {
 	Mat4 m;
-	m.c[0] = vec4_scale(a.c[0], x);
-	m.c[1] = vec4_scale(a.c[1], y);
-	m.c[2] = vec4_scale(a.c[2], z);
-	m.c[3] = a.c[3];
+	m.a = vec4_scale(a.a, x);
+	m.b = vec4_scale(a.b, y);
+	m.c = vec4_scale(a.c, z);
+	m.d = a.d;
 	return m;
 }
 static inline Mat4 mat4_mul(const Mat4 a, const Mat4 b) {
@@ -230,23 +236,23 @@ static inline Vec4 mat4_mul_vec4(const Mat4 m, const Vec4 v) {
 static inline Mat4 mat4_translate(float x, float y, float z) {
 	Mat4 t = MAT4_IDENTITY;
 
-	t.c[3].x = x;
-	t.c[3].y = y;
-	t.c[3].z = z;
+	t.d.x = x;
+	t.d.y = y;
+	t.d.z = z;
 	return t;
 }
 
 static inline void mat4_translate_in_place(Mat4 * m, float x, float y, float z) {
 	Vec4 t = {x, y, z, 0};
 
-	Vec4 rx = {m->c[0].x, m->c[1].x, m->c[2].x, m->c[3].x};
-	m->c[3].x += vec4_mul_inner(rx, t);
-	Vec4 ry = {m->c[0].y, m->c[1].y, m->c[2].y, m->c[3].y};
-	m->c[3].y += vec4_mul_inner(ry, t);
-	Vec4 rz = {m->c[0].z, m->c[1].z, m->c[2].z, m->c[3].z};
-	m->c[3].z += vec4_mul_inner(rz, t);
-	Vec4 rw = {m->c[0].w, m->c[1].w, m->c[2].w, m->c[3].w};
-	m->c[3].w += vec4_mul_inner(rw, t);
+	Vec4 rx = {m->a.x, m->b.x, m->c.x, m->d.x};
+	m->d.x += vec4_mul_inner(rx, t);
+	Vec4 ry = {m->a.y, m->b.y, m->c.y, m->d.y};
+	m->d.y += vec4_mul_inner(ry, t);
+	Vec4 rz = {m->a.z, m->b.z, m->c.z, m->d.z};
+	m->d.z += vec4_mul_inner(rz, t);
+	Vec4 rw = {m->a.w, m->b.w, m->c.w, m->d.w};
+	m->d.w += vec4_mul_inner(rw, t);
 }
 static inline Mat4 mat4_from_vec3_mul_outer(const Vec3 a, const Vec3 b) {
 	Mat4 m;
@@ -270,10 +276,10 @@ static inline Mat4 mat4_rotate(const Mat4 M, float x, float y, float z, float an
 
 		Mat4 T = mat4_from_vec3_mul_outer(u, u);
 
-		Mat4 S = {{{0, u.z, -u.y, 0},
+		Mat4 S = {{0, u.z, -u.y, 0},
 			    {-u.z, 0, u.x, 0},
 			    {u.y, -u.x, 0, 0},
-			    {0, 0, 0, 0}}};
+			    {0, 0, 0, 0}};
 
 		S = mat4_scale(S, s);
 
@@ -284,7 +290,7 @@ static inline Mat4 mat4_rotate(const Mat4 M, float x, float y, float z, float an
 		T = mat4_add(T, C);
 		T = mat4_add(T, S);
 
-		T.c[3].w = 1.0;
+		T.d.w = 1.0;
 		return mat4_mul(M, T);
 	}
 	else {
@@ -294,28 +300,28 @@ static inline Mat4 mat4_rotate(const Mat4 M, float x, float y, float z, float an
 static inline Mat4 mat4_rotate_X(const Mat4 M, float angle) {
     float s = sinf(angle);
     float c = cosf(angle);
-    Mat4 R = {{{1.f, 0.f, 0.f, 0.f},
+    Mat4 R = {{1.f, 0.f, 0.f, 0.f},
                 {0.f, c, s, 0.f},
                 {0.f, -s, c, 0.f},
-                {0.f, 0.f, 0.f, 1.f}}};
+                {0.f, 0.f, 0.f, 1.f}};
     return mat4_mul(M, R);
 }
 static inline Mat4 mat4_rotate_Y(const Mat4 M, float angle) {
     float s = sinf(angle);
     float c = cosf(angle);
-    Mat4 R = {{{c, 0.f, s, 0.f},
+    Mat4 R = {{c, 0.f, s, 0.f},
                 {0.f, 1.f, 0.f, 0.f},
                 {-s, 0.f, c, 0.f},
-                {0.f, 0.f, 0.f, 1.f}}};
+                {0.f, 0.f, 0.f, 1.f}};
     return mat4_mul(M, R);
 }
 static inline Mat4 mat4_rotate_Z(const Mat4 M, float angle) {
     float s = sinf(angle);
     float c = cosf(angle);
-    Mat4 R = {{{c, s, 0.f, 0.f},
+    Mat4 R = {{c, s, 0.f, 0.f},
                 {-s, c, 0.f, 0.f},
                 {0.f, 0.f, 1.f, 0.f},
-                {0.f, 0.f, 0.f, 1.f}}};
+                {0.f, 0.f, 0.f, 1.f}};
     return mat4_mul(M, R);
 }
 static inline Mat4 mat4_invert(const Mat4 m) {
@@ -371,10 +377,10 @@ static inline Mat4 mat4_orthonormalize(const Mat4 m) {
 	Vec3 h;
 
 	Vec3 * cols[] = {
-		(Vec3 *)&r.c[0],
-		(Vec3 *)&r.c[1],
-		(Vec3 *)&r.c[2],
-		(Vec3 *)&r.c[3],
+		(Vec3 *)&r.a,
+		(Vec3 *)&r.b,
+		(Vec3 *)&r.c,
+		(Vec3 *)&r.d,
 	};
 
 	*cols[2] = vec3_norm(*cols[2]);
@@ -400,62 +406,62 @@ static inline Mat4 mat4_orthonormalize(const Mat4 m) {
 static inline Mat4 mat4_frustum(float l, float r, float b, float t, float n, float f) {
 	Mat4 m;
 
-	m.c[0].x = 2.f * n / (r - l);
-	m.c[0].y = m.c[0].z = m.c[0].w = 0.f;
+	m.a.x = 2.f * n / (r - l);
+	m.a.y = m.a.z = m.a.w = 0.f;
 
-	m.c[1].y = 2.f * n / (t - b);
-	m.c[1].x = m.c[1].z = m.c[1].w = 0.f;
+	m.b.y = 2.f * n / (t - b);
+	m.b.x = m.b.z = m.b.w = 0.f;
 
-	m.c[2].x = (r + l) / (r - l);
-	m.c[2].y = (t + b) / (t - b);
-	m.c[2].z = -(f + n) / (f - n);
-	m.c[2].w = -1.f;
+	m.c.x = (r + l) / (r - l);
+	m.c.y = (t + b) / (t - b);
+	m.c.z = -(f + n) / (f - n);
+	m.c.w = -1.f;
 
-	m.c[3].z = -2.f * (f * n) / (f - n);
-	m.c[3].x = m.c[3].y = m.c[3].w = 0.f;
+	m.d.z = -2.f * (f * n) / (f - n);
+	m.d.x = m.d.y = m.d.w = 0.f;
 
 	return m;
 }
 static inline Mat4 mat4_ortho(float l, float r, float b, float t, float n, float f) {
 	Mat4 m;
-	m.c[0].x = 2.f / (r - l);
-	m.c[0].y = m.c[0].z = m.c[0].w = 0.f;
+	m.a.x = 2.f / (r - l);
+	m.a.y = m.a.z = m.a.w = 0.f;
 
-	m.c[1].y = 2.f / (t - b);
-	m.c[1].x = m.c[1].z = m.c[1].w = 0.f;
+	m.b.y = 2.f / (t - b);
+	m.b.x = m.b.z = m.b.w = 0.f;
 
-	m.c[2].z = -2.f / (f - n);
-	m.c[2].x = m.c[2].y = m.c[2].w = 0.f;
+	m.c.z = -2.f / (f - n);
+	m.c.x = m.c.y = m.c.w = 0.f;
 
-	m.c[3].x = -(r + l) / (r - l);
-	m.c[3].y = -(t + b) / (t - b);
-	m.c[3].z = -(f + n) / (f - n);
-	m.c[3].w = 1.f;
+	m.d.x = -(r + l) / (r - l);
+	m.d.y = -(t + b) / (t - b);
+	m.d.z = -(f + n) / (f - n);
+	m.d.w = 1.f;
 	return m;
 }
 static inline Mat4 mat4_perspective(float y_fov, float aspect, float n, float f) {
 	Mat4 m;
 	float const a = (float)(1.f / tan(y_fov / 2.f));
 
-	m.c[0].x = a / aspect;
-	m.c[0].y = 0.f;
-	m.c[0].z = 0.f;
-	m.c[0].w = 0.f;
+	m.a.x = a / aspect;
+	m.a.y = 0.f;
+	m.a.z = 0.f;
+	m.a.w = 0.f;
 
-	m.c[1].x = 0.f;
-	m.c[1].y = a;
-	m.c[1].z = 0.f;
-	m.c[1].w = 0.f;
+	m.b.x = 0.f;
+	m.b.y = a;
+	m.b.z = 0.f;
+	m.b.w = 0.f;
 
-	m.c[2].x = 0.f;
-	m.c[2].y = 0.f;
-	m.c[2].z = -((f + n) / (f - n));
-	m.c[2].w = -1.f;
+	m.c.x = 0.f;
+	m.c.y = 0.f;
+	m.c.z = -((f + n) / (f - n));
+	m.c.w = -1.f;
 
-	m.c[3].x = 0.f;
-	m.c[3].y = 0.f;
-	m.c[3].z = -((2.f * f * n) / (f - n));
-	m.c[3].w = 0.f;
+	m.d.x = 0.f;
+	m.d.y = 0.f;
+	m.d.z = -((2.f * f * n) / (f - n));
+	m.d.w = 0.f;
 
 	return m;
 }
@@ -471,25 +477,25 @@ static inline Mat4 mat4_look_at(const Vec3 eye, const Vec3 center, const Vec3 up
 
 	t = vec3_mul_cross(s, f);
 
-	m.c[0].x = s.x;
-	m.c[0].y = t.x;
-	m.c[0].z = -f.x;
-	m.c[0].w = 0.f;
+	m.a.x = s.x;
+	m.a.y = t.x;
+	m.a.z = -f.x;
+	m.a.w = 0.f;
 
-	m.c[1].x = s.y;
-	m.c[1].y = t.y;
-	m.c[1].z = -f.y;
-	m.c[1].w = 0.f;
+	m.b.x = s.y;
+	m.b.y = t.y;
+	m.b.z = -f.y;
+	m.b.w = 0.f;
 
-	m.c[2].x = s.z;
-	m.c[2].y = t.z;
-	m.c[2].z = -f.z;
-	m.c[2].w = 0.f;
+	m.c.x = s.z;
+	m.c.y = t.z;
+	m.c.z = -f.z;
+	m.c.w = 0.f;
 
-	m.c[3].x = 0.f;
-	m.c[3].y = 0.f;
-	m.c[3].z = 0.f;
-	m.c[3].w = 1.f;
+	m.d.x = 0.f;
+	m.d.y = 0.f;
+	m.d.z = 0.f;
+	m.d.w = 1.f;
 
 	mat4_translate_in_place(&m, -eye.x, -eye.y, -eye.z);
 

@@ -363,6 +363,11 @@ int main(int argc, char ** argv) {
 		exit(1);
 	}
 
+	if (!linalg_sanity_ok()) {
+		fprintf(stderr, "linmath.h structure sanity check failed!\n");
+		abort();
+	}
+
 	test_vec3();
 	test_vec4();
 	test_mat4();

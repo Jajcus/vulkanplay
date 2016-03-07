@@ -174,6 +174,11 @@ int main(int argc, char **argv) {
 	int exit_code = 2;
 	struct plat_surface * surf = NULL;
 
+	if (!linalg_sanity_ok()) {
+		fprintf(stderr, "linmath.h structure sanity check failed!\n");
+		abort();
+	}
+
 	parse_args(argc, argv);
 
 	result = vkapi_init_instance("vulkan play");

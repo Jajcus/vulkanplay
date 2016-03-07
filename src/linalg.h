@@ -33,6 +33,14 @@ typedef union vec34 {
 	Vec3 v3;
 } Vec34;
 
+static inline int linalg_sanity_ok(void) {
+
+	return ( sizeof(Vec3) == 3 * sizeof(float)
+		&& sizeof(Vec4) == 4 * sizeof(float)
+		&& sizeof(Mat4) == 16 * sizeof(float)
+		&& sizeof(Vec34) == sizeof(Vec4) );
+}
+
 static inline Vec3 vec3_add(const Vec3 a, const Vec3 b) {
 	Vec3 r;
 	r.x = a.x + b.x;

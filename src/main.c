@@ -10,10 +10,8 @@
 #include "vkapi.h"
 #include "surface.h"
 #include "renderer.h"
-#include "scene.h"
 #include "linalg.h"
-
-#include "models/tetrahedron.h"
+#include "world.h"
 
 #ifdef HAVE_XCB
 #include "platform/plat_xcb.h"
@@ -141,38 +139,12 @@ void parse_args(int argc, char **argv) {
 	}
 }
 
-static struct scene * scene = NULL;
-static Vec4 eye_base = {-0.5f, 1.0f, 6.0f, 1.0f};
-static Vec3 look_at = {0.0f, 0.0f, 0.0f};
-static float y_angle = 0, x_angle = 0;
-
-void on_left_click(float x, float y) {
-
-	printf("left click on (%f, %f)\n", x, y);
-	if (x == 0) return;
-
-	y_angle += 10.0 * x;
-	x_angle += 10.0 * y;
-
-	y_angle = fmod(y_angle, 360.0);
-	x_angle = fmod(x_angle, 360.0);
-
-	Vec34 eye;
-        Mat4 rot1, rot2;
-
-        rot1 = mat4_rotate_Y(MAT4_IDENTITY, (float)deg_to_rad((float)y_angle));
-        rot2 = mat4_rotate_X(rot1, (float)deg_to_rad((float)x_angle));
-
-	eye.v4 = mat4_mul_vec4(rot2, eye_base);
-
-	scene_set_eye(scene, eye.v3, look_at);
-}
-
 int main(int argc, char **argv) {
 
 	VkResult result;
 	int exit_code = 2;
 	struct plat_surface * surf = NULL;
+	struct world * world = NULL;
 
 	if (!linalg_sanity_ok()) {
 		fprintf(stderr, "linmath.h structure sanity check failed!\n");
@@ -203,12 +175,9 @@ int main(int argc, char **argv) {
 		goto finish;
 	}
 
-	scene = create_scene();
-	struct model * tetrahedron = create_tetrahedron(0);
+	world = create_world();
 
-	scene_add_object(scene, tetrahedron, MAT4_IDENTITY);
-
-	struct renderer * renderer = start_renderer(surf, scene);
+	struct renderer * renderer = start_renderer(surf, world_get_scene(world));
 	if (!renderer) {
 		goto finish;
 	}
@@ -223,7 +192,7 @@ finish:
 
 	vkapi_finish_device();
 
-	if (scene) destroy_scene(scene);
+	if (world) destroy_world(world);
 
 	if (surf) surf->destroy(surf);
 

@@ -1,4 +1,5 @@
 #include <xcb/xcb.h>
+#include <xcb/xcb_keysyms.h>
 #include <signal.h>
 #include <malloc.h>
 #include <string.h>
@@ -6,29 +7,178 @@
 #include "vkapi.h"
 #include "surface.h"
 #include "main.h"
-#include "plat_xcb.h"
+#include "platform/plat_xcb.h"
+#include "input_callbacks.h"
+
+enum atom_id {
+	_NET_WM_STATE,
+	_NET_WM_STATE_FULLSCREEN,
+	WM_PROTOCOLS,
+	WM_DELETE_WINDOW,
+	ATOM_COUNT,
+};
+static const char * atom_names[ATOM_COUNT] = {
+	"_NET_WM_STATE",
+	"_NET_WM_STATE_FULLSCREEN",
+	"WM_PROTOCOLS",
+	"WM_DELETE_WINDOW",
+};
+
+struct keysym_to_name {
+	xcb_keysym_t keysym;
+	const char * name;
+};
+
+// based on X11/keysymdef.h
+static const struct keysym_to_name keysym_dict[] = {
+	{0xff08, "<backspace>"},
+	{0xff09, "<tab>"},
+	{0xff0d, "<enter>"},
+	{0xff13, "<pause>"},
+	{0xff1b, "<escape>"},
+	{0xff50, "<home>"},
+	{0xff51, "<left>"},
+	{0xff52, "<up>"},
+	{0xff53, "<right>"},
+	{0xff54, "<down>"},
+	{0xff55, "<page-up>"},
+	{0xff56, "<page-down>"},
+	{0xff57, "<end>"},
+	{0xff7f, "<num-lock>"},
+	{0xff63, "<insert>"},
+	{0xff8d, "<keypad enter>"},
+	{0xff95, "<keypad 7>"},
+	{0xff96, "<keypad 4>"},
+	{0xff97, "<keypad 8>"},
+	{0xff98, "<keypad 6>"},
+	{0xff99, "<keypad 2>"},
+	{0xff9a, "<keypad 9>"},
+	{0xff9b, "<keypad 3>"},
+	{0xff9c, "<keypad 1>"},
+	{0xff9d, "<keypad 5>"},
+	{0xff9e, "<keypad 0>"},
+	{0xff9f, "<keypad .>"},
+	{0xffaa, "<keypad *>"},
+	{0xffab, "<keypad +>"},
+	{0xffad, "<keypad ->"},
+	{0xffae, "<keypad .>"},
+	{0xffaf, "<keypad />"},
+	{0xffb1, "<keypad 1>"},
+	{0xffb2, "<keypad 2>"},
+	{0xffb3, "<keypad 3>"},
+	{0xffb4, "<keypad 4>"},
+	{0xffb5, "<keypad 5>"},
+	{0xffb6, "<keypad 6>"},
+	{0xffb7, "<keypad 7>"},
+	{0xffb8, "<keypad 8>"},
+	{0xffb9, "<keypad 9>"},
+	{0xffbd, "<keypad enter>"},
+	{0xffbe, "<F1>"},
+	{0xffbf, "<F2>"},
+	{0xffc0, "<F3>"},
+	{0xffc1, "<F4>"},
+	{0xffc2, "<F5>"},
+	{0xffc3, "<F6>"},
+	{0xffc4, "<F7>"},
+	{0xffc5, "<F8>"},
+	{0xffc6, "<F9>"},
+	{0xffc7, "<F10>"},
+	{0xffc8, "<F11>"},
+	{0xffc9, "<F12>"},
+	{0xffe1, "<left shift>"},
+	{0xffe2, "<rigth shift>"},
+	{0xffe3, "<left control>"},
+	{0xffe4, "<right control>"},
+	{0xffe5, "<caps-lock>"},
+	{0xffe9, "<left alt>"},
+	{0xffea, "<rigth alt>"},
+	{0xffff, "<delete>"},
+	{0x0000, NULL},
+};
 
 struct plat_xcb_surface {
 	struct plat_surface plat_surface;
 
 	xcb_connection_t *conn;
 	xcb_window_t wid;
-	xcb_atom_t wm_delete_window_atom;
+
+	xcb_atom_t atoms[ATOM_COUNT];
+	xcb_intern_atom_cookie_t atom_cookies[ATOM_COUNT];
+
+	xcb_get_keyboard_mapping_reply_t *keymap;
+	xcb_keysym_t * keysyms;
+	int keysyms_length;
+	int first_keycode, last_keycode;
+	xcb_get_keyboard_mapping_cookie_t keymap_cookie;
 };
 
-static xcb_atom_t _get_atom(struct xcb_connection_t *conn, const char *name) {
+static void _request_atoms(struct plat_xcb_surface * surf) {
 
-   xcb_atom_t atom;
-   xcb_intern_atom_cookie_t cookie;
-   xcb_intern_atom_reply_t *reply;
+	int i;
+	for(i = 0; i < ATOM_COUNT; i++){
+		surf->atom_cookies[i] = xcb_intern_atom(surf->conn, 0,
+							strlen(atom_names[i]),
+							atom_names[i]);
+	}
+}
 
-   cookie = xcb_intern_atom(conn, 0, strlen(name), name);
-   reply = xcb_intern_atom_reply(conn, cookie, NULL);
-   if (reply) atom = reply->atom;
-   else atom = XCB_NONE;
+static void _collect_atoms(struct plat_xcb_surface * surf) {
 
-   free(reply);
-   return atom;
+	int i;
+	for(i = 0; i < ATOM_COUNT; i++){
+		xcb_intern_atom_reply_t *reply;
+		reply = xcb_intern_atom_reply(surf->conn, surf->atom_cookies[i], NULL);
+		if (reply) {
+			surf->atoms[i] = reply->atom;
+			free(reply);
+		}
+		else surf->atoms[i] = XCB_NONE;
+	}
+}
+
+
+static void _request_keymap(struct plat_xcb_surface * surf) {
+
+	surf->first_keycode = xcb_get_setup(surf->conn)->min_keycode;
+	surf->last_keycode = xcb_get_setup(surf->conn)->max_keycode;
+	surf->keymap_cookie = xcb_get_keyboard_mapping(surf->conn, surf->first_keycode,
+						surf->last_keycode - surf->first_keycode + 1);
+}
+
+static void _collect_keymap(struct plat_xcb_surface * surf) {
+
+	surf->keymap = xcb_get_keyboard_mapping_reply(surf->conn, surf->keymap_cookie, NULL);
+	if (surf->keymap) {
+		surf->keysyms = xcb_get_keyboard_mapping_keysyms(surf->keymap);
+		surf->keysyms_length = xcb_get_keyboard_mapping_keysyms_length(surf->keymap);
+	}
+}
+static xcb_keysym_t _keycode_to_keysym(struct plat_xcb_surface * surf, int keycode) {
+
+	int kpk = surf->keymap->keysyms_per_keycode;
+
+	if (keycode < surf->first_keycode || keycode > surf->last_keycode) {
+		return XCB_NO_SYMBOL;
+	}
+
+	xcb_keysym_t * syms = &surf->keysyms[(keycode - surf->first_keycode) * kpk];
+
+	return syms[0];
+}
+
+const char * _keysym_to_name(xcb_keysym_t keysym) {
+static char basic[256];
+
+	if (keysym >= 0x20 && keysym < 0x7f) {
+		basic[keysym * 2] = (char) keysym;
+		basic[keysym * 2 + 1] = '\000';
+		return basic + keysym * 2;
+	}
+	int i;
+	for(i = 0; keysym_dict[i].keysym; i++) {
+		if (keysym_dict[i].keysym == keysym) return keysym_dict[i].name;
+	}
+	return "???";
 }
 
 struct plat_surface* plat_xcb_get_surface(void) {
@@ -36,11 +186,20 @@ struct plat_surface* plat_xcb_get_surface(void) {
 	struct plat_xcb_surface * surf = calloc(1, sizeof(struct plat_xcb_surface));
 
 	surf->conn = xcb_connect(NULL, NULL);
-
 	if (xcb_connection_has_error(surf->conn)) {
 		printf("Cannot open display\n");
 		goto error;
 	}
+
+	_request_atoms(surf);
+	_request_keymap(surf);
+	_collect_atoms(surf);
+	_collect_keymap(surf);
+	if (!surf->keymap)  {
+		printf("Cannot read X11 keymap\n");
+		goto error;
+	}
+
 	xcb_screen_t * screen = xcb_setup_roots_iterator (xcb_get_setup (surf->conn)).data;
 	surf->wid = xcb_generate_id(surf->conn);
 
@@ -52,7 +211,7 @@ struct plat_surface* plat_xcb_get_surface(void) {
 				XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY
 				| XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE
 				| XCB_EVENT_MASK_POINTER_MOTION
-				| XCB_EVENT_MASK_KEY_PRESS
+				| XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE
 				};
 	values[0] = screen->black_pixel;
 
@@ -79,33 +238,29 @@ struct plat_surface* plat_xcb_get_surface(void) {
                              title);
 
 	if (options.fullscreen) {
-		xcb_atom_t _net_wm_state_atom = _get_atom(surf->conn, "_NET_WM_STATE");
-		xcb_atom_t _net_wm_state_fullscreen_atom = _get_atom(surf->conn, "_NET_WM_STATE_FULLSCREEN");
-		if (_net_wm_state_atom != XCB_NONE && _net_wm_state_fullscreen_atom != XCB_NONE) {
+		if (surf->atoms[_NET_WM_STATE] != XCB_NONE && surf->atoms[_NET_WM_STATE_FULLSCREEN] != XCB_NONE) {
 			printf("Requesting full-screen window\n");
 			xcb_change_property (surf->conn,
 					     XCB_PROP_MODE_REPLACE,
 					     surf->wid,
-					     _net_wm_state_atom,
+					     surf->atoms[_NET_WM_STATE],
 					     XCB_ATOM_ATOM,
 					     32,
 					     1,
-					     &_net_wm_state_fullscreen_atom);
+					     &surf->atoms[_NET_WM_STATE_FULLSCREEN]);
 		}
 		else {
 			fprintf(stderr, "Cannot request full-screen window\n");
 		}
 	}
 
-	xcb_atom_t wm_protocols_atom = _get_atom(surf->conn, "WM_PROTOCOLS");
-	surf->wm_delete_window_atom = _get_atom(surf->conn, "WM_DELETE_WINDOW");
-	if (wm_protocols_atom != XCB_NONE && surf->wm_delete_window_atom != XCB_NONE) {
+	if (surf->atoms[WM_PROTOCOLS] != XCB_NONE && surf->atoms[WM_DELETE_WINDOW] != XCB_NONE) {
 		xcb_change_property(surf->conn,
 					XCB_PROP_MODE_REPLACE,
 					surf->wid,
-					wm_protocols_atom,
+					surf->atoms[WM_PROTOCOLS],
 					4, 32, 1,
-					&surf->wm_delete_window_atom);
+					&surf->atoms[WM_DELETE_WINDOW]);
 	}
 	else {
 		fprintf(stderr, "Could not request WM_DELETE_WINDOW event.");
@@ -135,6 +290,7 @@ struct plat_surface* plat_xcb_get_surface(void) {
 	return (struct plat_surface *)surf;
 
 error:
+	if (surf->keymap) free(surf->keymap);
 	xcb_disconnect(surf->conn);
 	free(surf);
 	return NULL;
@@ -173,27 +329,77 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 			case XCB_BUTTON_PRESS: {
 				xcb_button_press_event_t *bp = (xcb_button_press_event_t *)event;
 				printf("Button %i pressed at (%4i, %4i)\n", bp->detail, bp->event_x, bp->event_y);
-				if (bp->detail == 3) {
-					printf("Exitting on right click\n");
-					request_exit();
+				int button = 0;
+				switch(bp->detail) {
+					case 1: button = LEFT_BUTTON; break;
+					case 2: button = MIDDLE_BUTTON; break;
+					case 3: button = RIGHT_BUTTON; break;
 				}
-				on_left_click(2.0f * bp->event_x / width - 1.0f,
-					       -2.0f * bp->event_y / height + 1.0f);
+				if (button) {
+					on_mouse_button_press(
+						2.0f * bp->event_x / width - 1.0f,
+					       -2.0f * bp->event_y / height + 1.0f,
+					       button);
+				}
 				break;
 			}
 			case XCB_BUTTON_RELEASE: {
-				//xcb_button_release_event_t *bp = (xcb_button_release_event_t *)event;
-				//printf("Button %i released at (%4i, %4i)\n", bp->detail, bp->event_x, bp->event_y);
+				xcb_button_release_event_t *bp = (xcb_button_release_event_t *)event;
+				printf("Button %i released at (%4i, %4i)\n", bp->detail, bp->event_x, bp->event_y);
+				int button = 0;
+				switch(bp->detail) {
+					case 1: button = LEFT_BUTTON; break;
+					case 2: button = MIDDLE_BUTTON; break;
+					case 3: button = RIGHT_BUTTON; break;
+				}
+				if (button) {
+					on_mouse_button_release(
+						2.0f * bp->event_x / width - 1.0f,
+					       -2.0f * bp->event_y / height + 1.0f,
+					       button);
+				}
 				break;
 			}
 			case XCB_MOTION_NOTIFY: {
-				//xcb_motion_notify_event_t *bp = (xcb_motion_notify_event_t *)event;
-				//printf("Motion %i at (%4i, %4i)\n", bp->detail, bp->event_x, bp->event_y);
+				xcb_motion_notify_event_t *bp = (xcb_motion_notify_event_t *)event;
+				printf("Mouse moved at (%4i, %4i)\n", bp->event_x, bp->event_y);
+				int button = 0;
+				if ((bp->state & XCB_KEY_BUT_MASK_BUTTON_1)) button |= LEFT_BUTTON;
+				if ((bp->state & XCB_KEY_BUT_MASK_BUTTON_2)) button |= MIDDLE_BUTTON;
+				if ((bp->state & XCB_KEY_BUT_MASK_BUTTON_3)) button |= RIGHT_BUTTON;
+				on_mouse_move(2.0f * bp->event_x / width - 1.0f,
+					       -2.0f * bp->event_y / height + 1.0f,
+					       button);
 				break;
 			}
 			case XCB_KEY_PRESS: {
 				xcb_key_press_event_t *kp = (xcb_key_press_event_t *)event;
 				printf("Key %i pressed\n", kp->detail);
+				xcb_keysym_t keysym = _keycode_to_keysym(xcb_surf, kp->detail);
+				if (keysym >= 0x20 && keysym < 0x7f) {
+					printf("  '%c' pressed\n", (int)keysym);
+				}
+				else {
+					printf("  0x%04x pressed\n", keysym);
+				}
+				const char * keyname = _keysym_to_name(keysym);
+				printf("  it is: %s\n", keyname);
+				on_key_press(kp->detail, keyname);
+				break;
+			}
+			case XCB_KEY_RELEASE: {
+				xcb_key_release_event_t *kp = (xcb_key_release_event_t *)event;
+				printf("Key %i released\n", kp->detail);
+				xcb_keysym_t keysym = _keycode_to_keysym(xcb_surf, kp->detail);
+				if (keysym >= 0x20 && keysym < 0x7f) {
+					printf("  '%c' released\n", (int)keysym);
+				}
+				else {
+					printf("  0x%04x released\n", keysym);
+				}
+				const char * keyname = _keysym_to_name(keysym);
+				printf("  it is: %s\n", keyname);
+				on_key_release(kp->detail, keyname);
 				break;
 			}
 			case XCB_CONFIGURE_NOTIFY: {
@@ -206,7 +412,7 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 			case XCB_CLIENT_MESSAGE: {
 				xcb_client_message_event_t *cm = (xcb_client_message_event_t*)event;
 				printf("Client message\n");
-				if (cm->data.data32[0] == xcb_surf->wm_delete_window_atom) {
+				if (cm->data.data32[0] == xcb_surf->atoms[WM_DELETE_WINDOW]) {
 					printf("DELETE_WINDOW request\n");
 					request_exit();
 				}
@@ -237,3 +443,4 @@ void plat_xcb_destroy_surface(struct plat_surface *surf) {
 
 	free(surf);
 }
+

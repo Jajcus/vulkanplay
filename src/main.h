@@ -16,7 +16,4 @@ extern struct options {
 void request_exit(void);
 int exit_requested(void);
 
-void on_left_click(float x, float y);
-void on_move(float x, float y, int button1);
-
 #endif

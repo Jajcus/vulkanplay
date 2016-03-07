@@ -13,6 +13,7 @@ add_executable(vulkanplay
 		src/scene.c
 		src/surface.c
 		src/vkapi.c
+		src/world.c
 		)
 set(SHADERS src/shaders/main.vert src/shaders/main.frag)
 

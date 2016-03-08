@@ -1,5 +1,4 @@
 #include <xcb/xcb.h>
-#include <xcb/xcb_keysyms.h>
 #include <signal.h>
 #include <malloc.h>
 #include <string.h>

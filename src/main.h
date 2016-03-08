@@ -2,11 +2,12 @@
 #define plat_h
 
 #include <stdint.h>
+#include <stdbool.h>
 
 extern struct options {
-	int fullscreen;
-	int pres_mode;
-	int stats;
+	bool fullscreen;
+	bool pres_mode;
+	bool stats;
 	float fps_cap;
 
 	uint32_t win_width;
@@ -14,6 +15,6 @@ extern struct options {
 } options;
 
 void request_exit(void);
-int exit_requested(void);
+bool exit_requested(void);
 
 #endif

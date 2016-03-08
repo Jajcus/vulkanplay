@@ -1,5 +1,6 @@
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -76,7 +77,7 @@ struct renderer {
 
 	pthread_t thread;
 	pthread_mutex_t mutex;
-	int stop; /* request to stop the rendering thread */
+	bool stop; /* request to stop the rendering thread */
 };
 
 struct uniform_buffer {
@@ -996,7 +997,7 @@ void * render_loop(void * arg) {
 
 	while(!exit_requested()) {
 		pthread_mutex_lock(&renderer->mutex);
-		int stop = renderer->stop;
+		bool stop = renderer->stop;
 		pthread_mutex_unlock(&renderer->mutex);
 		if (stop) break;
 
@@ -1006,7 +1007,7 @@ void * render_loop(void * arg) {
 
 		while(!exit_requested()) {
 			pthread_mutex_lock(&renderer->mutex);
-			int stop = renderer->stop;
+			bool stop = renderer->stop;
 			pthread_mutex_unlock(&renderer->mutex);
 			if (stop) break;
 
@@ -1134,7 +1135,7 @@ void stop_renderer(struct renderer * renderer) {
 	if (!renderer) return;
 
 	pthread_mutex_lock(&renderer->mutex);
-	renderer->stop = 1;
+	renderer->stop = true;
 	pthread_mutex_unlock(&renderer->mutex);
 
 	pthread_join(renderer->thread, NULL);

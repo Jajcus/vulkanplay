@@ -22,26 +22,26 @@
 #endif
 
 static pthread_mutex_t _exit_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int _exit_requested = 0;
+static bool _exit_requested = false;
 
 struct options options = {
-	.fullscreen = 0,
+	.fullscreen = false,
 	.pres_mode = -1,
 	.win_width = 500,
 	.win_height = 500,
-	.stats = 0,
-	.fps_cap = 0,
+	.stats = false,
+	.fps_cap = false,
 };
 
 void request_exit(void) {
 
 	pthread_mutex_lock(&_exit_mutex);
-	_exit_requested = 1;
+	_exit_requested = true;
 	pthread_mutex_unlock(&_exit_mutex);
 }
-int exit_requested(void) {
+bool exit_requested(void) {
 
-	int exit_requested;
+	bool exit_requested;
 	pthread_mutex_lock(&_exit_mutex);
 	exit_requested = _exit_requested;
 	pthread_mutex_unlock(&_exit_mutex);
@@ -89,7 +89,7 @@ void parse_args(int argc, char **argv) {
 			exit(0);
 		}
 		else if (!strcmp(opt, "-f") || !strcmp(opt, "--fullscreen")) {
-			options.fullscreen = 1;
+			options.fullscreen = true;
 		}
 		else if (!strcmp(opt, "-v") || !strcmp(opt, "--vsync")) {
 			if (!arg) {
@@ -100,7 +100,7 @@ void parse_args(int argc, char **argv) {
 			options.pres_mode = val;
 		}
 		else if (!strcmp(opt, "-s") || !strcmp(opt, "--stats")) {
-			options.stats = 1;
+			options.stats = true;
 		}
 		else if (!strcmp(opt, "-W") || !strcmp(opt, "--width")) {
 			if (!arg) {

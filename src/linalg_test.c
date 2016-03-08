@@ -208,8 +208,8 @@ void test_mat4(void) {
 	Vec3 V3 = {1, 2, 3};
 	vec3 w3 = {3, 4, 5};
 	Vec3 W3 = {3, 4, 5};
-	vec3 u3 = {1, 0, 0};
-	Vec3 U3 = {1, 0, 0};
+	//vec3 u3 = {1, 0, 0};
+	//Vec3 U3 = {1, 0, 0};
 
 	mat4x4 r;
 	Mat4 R;

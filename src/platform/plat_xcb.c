@@ -312,9 +312,13 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 
 	int width = 1, height = 1;
 
-	xcb_generic_event_t *event;
-	while ( !_plat_xcb_signal_received && !exit_requested() && (event = xcb_wait_for_event(xcb_surf->conn)) ) {
-        	switch (event->response_type & ~0x80) {
+	xcb_generic_event_t *event, *next_event = NULL;
+	while ( !_plat_xcb_signal_received && !exit_requested() ) {
+		if (next_event) event = next_event;
+		else event = xcb_wait_for_event(xcb_surf->conn);
+		if (!event) break;
+		next_event = NULL;
+		switch (event->response_type & ~0x80) {
 			case XCB_EXPOSE: {
 				xcb_expose_event_t *expose = (xcb_expose_event_t *)event;
 
@@ -382,9 +386,18 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 				break;
 			}
 			case XCB_KEY_RELEASE: {
-				xcb_key_release_event_t *kp = (xcb_key_release_event_t *)event;
-				printf("Key %i released\n", kp->detail);
-				xcb_keysym_t keysym = _keycode_to_keysym(xcb_surf, kp->detail);
+				xcb_key_release_event_t *kr = (xcb_key_release_event_t *)event;
+				next_event = xcb_poll_for_event(xcb_surf->conn);
+				if (next_event && ((next_event->response_type & ~0x80) == XCB_KEY_PRESS)) {
+					xcb_key_press_event_t *kp = (xcb_key_press_event_t *)event;
+					if (kp->detail == kr->detail && kp->time == kr->time) {
+						// auto-repeat
+						next_event = NULL;
+						break;
+					}
+				}
+				printf("Key %i released\n", kr->detail);
+				xcb_keysym_t keysym = _keycode_to_keysym(xcb_surf, kr->detail);
 				if (keysym >= 0x20 && keysym < 0x7f) {
 					printf("  '%c' released\n", (int)keysym);
 				}

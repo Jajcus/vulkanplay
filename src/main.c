@@ -177,6 +177,7 @@ int main(int argc, char **argv) {
 
 	world = create_world();
 
+	start_world(world);
 	struct renderer * renderer = start_renderer(surf, world_get_scene(world));
 	if (!renderer) {
 		goto finish;

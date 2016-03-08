@@ -27,8 +27,7 @@ struct scene_object {
 };
 
 struct scene {
-	Vec3 eye;
-	Vec3 look_at;
+	Vec3 eye_pos, eye_dir;
 	Vec4 light_pos;
 
 	struct scene_object * objects;
@@ -61,7 +60,7 @@ struct scene * create_scene(void);
 #define scene_unlock(scene) pthread_mutex_unlock(&(scene)->mutex)
 
 void scene_add_object(struct scene * scene, struct model * model, Mat4 matrix);
-void scene_set_eye(struct scene * scene, Vec3 eye, Vec3 look_at);
+void scene_set_eye(struct scene * scene, Vec3 position, Vec3 direction);
 void destroy_scene(struct scene * scene);
 
 #endif

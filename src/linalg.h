@@ -465,12 +465,11 @@ static inline Mat4 mat4_perspective(float y_fov, float aspect, float n, float f)
 
 	return m;
 }
-static inline Mat4 mat4_look_at(const Vec3 eye, const Vec3 center, const Vec3 up) {
+static inline Mat4 mat4_view(const Vec3 eye_pos, const Vec3 eye_dir, const Vec3 up) {
 	Mat4 m;
 	Vec3 f, s, t;
 
-	f = vec3_sub(center, eye);
-	f = vec3_norm(f);
+	f = vec3_norm(eye_dir);
 
 	s = vec3_mul_cross(f, up);
 	s = vec3_norm(s);
@@ -497,7 +496,7 @@ static inline Mat4 mat4_look_at(const Vec3 eye, const Vec3 center, const Vec3 up
 	m.d.z = 0.f;
 	m.d.w = 1.f;
 
-	mat4_translate_in_place(&m, -eye.x, -eye.y, -eye.z);
+	mat4_translate_in_place(&m, -eye_pos.x, -eye_pos.y, -eye_pos.z);
 
 	return m;
 }

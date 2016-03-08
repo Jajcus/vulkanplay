@@ -417,7 +417,7 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 
 	renderer->p_matrix = mat4_perspective((float)deg_to_rad(45.0f), 1.0f, 1.0f, 100.0f);
 
-	renderer->v_matrix = mat4_look_at(renderer->scene->eye, renderer->scene->look_at, up);
+	renderer->v_matrix = mat4_view(renderer->scene->eye_pos, renderer->scene->eye_dir, up);
 
 	for(i = 0; i < renderer->scene->objects_len; i++) {
 		struct scene_object * obj = &renderer->scene->objects[i];

@@ -26,12 +26,12 @@ struct input_event {
 	float x, y;
 	int buttons;
 	int keycode;
-	const char * keyname;
 };
 
 struct input_event in_queue[IN_QUEUE_LEN];
 int in_queue_head=0, in_queue_tail=0;
 pthread_mutex_t in_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t in_queue_event = PTHREAD_COND_INITIALIZER;
 
 #define in_queue_empty() (in_queue_head == in_queue_tail)
 #define in_queue_full() (((in_queue_head + 1) % IN_QUEUE_LEN) == in_queue_tail)
@@ -54,6 +54,7 @@ void on_mouse_button_press(float x, float y, int button) {
 		in_queue[in_queue_head].y = y;
 		in_queue[in_queue_head].buttons = button;
 		in_queue_head = (in_queue_head + 1) % IN_QUEUE_LEN;
+		pthread_cond_signal(&in_queue_event);
 	}
 	pthread_mutex_unlock(&in_queue_mutex);
 }
@@ -70,6 +71,7 @@ void on_mouse_button_release(float x, float y, int button) {
 		in_queue[in_queue_head].y = y;
 		in_queue[in_queue_head].buttons = button;
 		in_queue_head = (in_queue_head + 1) % IN_QUEUE_LEN;
+		pthread_cond_signal(&in_queue_event);
 	}
 	pthread_mutex_unlock(&in_queue_mutex);
 }
@@ -86,14 +88,18 @@ void on_mouse_move(float x, float y, int buttons) {
 		in_queue[in_queue_head].y = y;
 		in_queue[in_queue_head].buttons = buttons;
 		in_queue_head = (in_queue_head + 1) % IN_QUEUE_LEN;
+		pthread_cond_signal(&in_queue_event);
 	}
 	pthread_mutex_unlock(&in_queue_mutex);
 }
 
-void on_key_press(int keycode, const char * keyname) {
+void on_key_press(int keycode) {
 
-	if (!strcmp(keyname, "<escape>")) {
+	if (keycode == KEY_ESCAPE) {
 		request_exit();
+	}
+	else if (keycode == KEY_NONE) {
+		return;
 	}
 	pthread_mutex_lock(&in_queue_mutex);
 	if (in_queue_full()) {
@@ -103,14 +109,17 @@ void on_key_press(int keycode, const char * keyname) {
 		in_queue[in_queue_head].type = EVENT_KEY_PRESS;
 		gettimeofday(&in_queue[in_queue_head].ts, NULL);
 		in_queue[in_queue_head].keycode = keycode;
-		in_queue[in_queue_head].keyname = keyname;
 		in_queue_head = (in_queue_head + 1) % IN_QUEUE_LEN;
+		pthread_cond_signal(&in_queue_event);
 	}
 	pthread_mutex_unlock(&in_queue_mutex);
 
 }
-void on_key_release(int keycode, const char * keyname) {
+void on_key_release(int keycode) {
 
+	if (keycode == KEY_NONE) {
+		return;
+	}
 	pthread_mutex_lock(&in_queue_mutex);
 	if (in_queue_full()) {
 		fprintf(stderr, "dropping key release event\n");
@@ -119,8 +128,8 @@ void on_key_release(int keycode, const char * keyname) {
 		in_queue[in_queue_head].type = EVENT_KEY_RELEASE;
 		gettimeofday(&in_queue[in_queue_head].ts, NULL);
 		in_queue[in_queue_head].keycode = keycode;
-		in_queue[in_queue_head].keyname = keyname;
 		in_queue_head = (in_queue_head + 1) % IN_QUEUE_LEN;
+		pthread_cond_signal(&in_queue_event);
 	}
 	pthread_mutex_unlock(&in_queue_mutex);
 }

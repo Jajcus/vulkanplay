@@ -23,76 +23,76 @@ static const char * atom_names[ATOM_COUNT] = {
 	"WM_DELETE_WINDOW",
 };
 
-struct keysym_to_name {
+struct keysym_to_code {
 	xcb_keysym_t keysym;
-	const char * name;
+	enum keycode code;
 };
 
 // based on X11/keysymdef.h
-static const struct keysym_to_name keysym_dict[] = {
-	{0xff08, "<backspace>"},
-	{0xff09, "<tab>"},
-	{0xff0d, "<enter>"},
-	{0xff13, "<pause>"},
-	{0xff1b, "<escape>"},
-	{0xff50, "<home>"},
-	{0xff51, "<left>"},
-	{0xff52, "<up>"},
-	{0xff53, "<right>"},
-	{0xff54, "<down>"},
-	{0xff55, "<page-up>"},
-	{0xff56, "<page-down>"},
-	{0xff57, "<end>"},
-	{0xff7f, "<num-lock>"},
-	{0xff63, "<insert>"},
-	{0xff8d, "<keypad enter>"},
-	{0xff95, "<keypad 7>"},
-	{0xff96, "<keypad 4>"},
-	{0xff97, "<keypad 8>"},
-	{0xff98, "<keypad 6>"},
-	{0xff99, "<keypad 2>"},
-	{0xff9a, "<keypad 9>"},
-	{0xff9b, "<keypad 3>"},
-	{0xff9c, "<keypad 1>"},
-	{0xff9d, "<keypad 5>"},
-	{0xff9e, "<keypad 0>"},
-	{0xff9f, "<keypad .>"},
-	{0xffaa, "<keypad *>"},
-	{0xffab, "<keypad +>"},
-	{0xffad, "<keypad ->"},
-	{0xffae, "<keypad .>"},
-	{0xffaf, "<keypad />"},
-	{0xffb1, "<keypad 1>"},
-	{0xffb2, "<keypad 2>"},
-	{0xffb3, "<keypad 3>"},
-	{0xffb4, "<keypad 4>"},
-	{0xffb5, "<keypad 5>"},
-	{0xffb6, "<keypad 6>"},
-	{0xffb7, "<keypad 7>"},
-	{0xffb8, "<keypad 8>"},
-	{0xffb9, "<keypad 9>"},
-	{0xffbd, "<keypad enter>"},
-	{0xffbe, "<F1>"},
-	{0xffbf, "<F2>"},
-	{0xffc0, "<F3>"},
-	{0xffc1, "<F4>"},
-	{0xffc2, "<F5>"},
-	{0xffc3, "<F6>"},
-	{0xffc4, "<F7>"},
-	{0xffc5, "<F8>"},
-	{0xffc6, "<F9>"},
-	{0xffc7, "<F10>"},
-	{0xffc8, "<F11>"},
-	{0xffc9, "<F12>"},
-	{0xffe1, "<left shift>"},
-	{0xffe2, "<rigth shift>"},
-	{0xffe3, "<left control>"},
-	{0xffe4, "<right control>"},
-	{0xffe5, "<caps-lock>"},
-	{0xffe9, "<left alt>"},
-	{0xffea, "<rigth alt>"},
-	{0xffff, "<delete>"},
-	{0x0000, NULL},
+static const struct keysym_to_code keysym_dict[] = {
+	{0xff08, KEY_BACKSPACE},
+	{0xff09, KEY_TAB},
+	{0xff0d, KEY_ENTER},
+	{0xff13, KEY_PAUSE},
+	{0xff1b, KEY_ESCAPE},
+	{0xff50, KEY_HOME},
+	{0xff51, KEY_LEFT},
+	{0xff52, KEY_UP},
+	{0xff53, KEY_RIGHT},
+	{0xff54, KEY_DOWN},
+	{0xff55, KEY_PAGE_UP},
+	{0xff56, KEY_PAGE_DOWN},
+	{0xff57, KEY_END},
+	{0xff7f, KEY_NUM_LOCK},
+	{0xff63, KEY_INSERT},
+	{0xff8d, KEY_KEYPAD_ENTER},
+	{0xff95, KEY_KEYPAD_7},
+	{0xff96, KEY_KEYPAD_4},
+	{0xff97, KEY_KEYPAD_8},
+	{0xff98, KEY_KEYPAD_6},
+	{0xff99, KEY_KEYPAD_2},
+	{0xff9a, KEY_KEYPAD_9},
+	{0xff9b, KEY_KEYPAD_3},
+	{0xff9c, KEY_KEYPAD_1},
+	{0xff9d, KEY_KEYPAD_5},
+	{0xff9e, KEY_KEYPAD_0},
+	{0xff9f, KEY_KEYPAD_DOT},
+	{0xffaa, KEY_KEYPAD_MUL},
+	{0xffab, KEY_KEYPAD_ADD},
+	{0xffad, KEY_KEYPAD_SUB},
+	{0xffae, KEY_KEYPAD_DOT},
+	{0xffaf, KEY_KEYPAD_DIV},
+	{0xffb1, KEY_KEYPAD_1},
+	{0xffb2, KEY_KEYPAD_2},
+	{0xffb3, KEY_KEYPAD_3},
+	{0xffb4, KEY_KEYPAD_4},
+	{0xffb5, KEY_KEYPAD_5},
+	{0xffb6, KEY_KEYPAD_6},
+	{0xffb7, KEY_KEYPAD_7},
+	{0xffb8, KEY_KEYPAD_8},
+	{0xffb9, KEY_KEYPAD_9},
+	{0xffbd, KEY_KEYPAD_ENTER},
+	{0xffbe, KEY_F1},
+	{0xffbf, KEY_F2},
+	{0xffc0, KEY_F3},
+	{0xffc1, KEY_F4},
+	{0xffc2, KEY_F5},
+	{0xffc3, KEY_F6},
+	{0xffc4, KEY_F7},
+	{0xffc5, KEY_F8},
+	{0xffc6, KEY_F9},
+	{0xffc7, KEY_F10},
+	{0xffc8, KEY_F11},
+	{0xffc9, KEY_F12},
+	{0xffe1, KEY_LEFT_SHIFT},
+	{0xffe2, KEY_RIGTH_SHIFT},
+	{0xffe3, KEY_LEFT_CONTROL},
+	{0xffe4, KEY_RIGHT_CONTROL},
+	{0xffe5, KEY_CAPS_LOCK},
+	{0xffe9, KEY_LEFT_ALT},
+	{0xffea, KEY_RIGTH_ALT},
+	{0xffff, KEY_DELETE},
+	{0x0000, KEY_NONE},
 };
 
 struct plat_xcb_surface {
@@ -165,19 +165,16 @@ static xcb_keysym_t _keycode_to_keysym(struct plat_xcb_surface * surf, int keyco
 	return syms[0];
 }
 
-const char * _keysym_to_name(xcb_keysym_t keysym) {
-static char basic[256];
+enum keycode _keysym_to_code(xcb_keysym_t keysym) {
 
 	if (keysym >= 0x20 && keysym < 0x7f) {
-		basic[keysym * 2] = (char) keysym;
-		basic[keysym * 2 + 1] = '\000';
-		return basic + keysym * 2;
+		return (enum keycode)keysym;
 	}
 	int i;
 	for(i = 0; keysym_dict[i].keysym; i++) {
-		if (keysym_dict[i].keysym == keysym) return keysym_dict[i].name;
+		if (keysym_dict[i].keysym == keysym) return keysym_dict[i].code;
 	}
-	return "???";
+	return KEY_NONE;
 }
 
 struct plat_surface* plat_xcb_get_surface(void) {
@@ -381,9 +378,7 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 				else {
 					printf("  0x%04x pressed\n", keysym);
 				}
-				const char * keyname = _keysym_to_name(keysym);
-				printf("  it is: %s\n", keyname);
-				on_key_press(kp->detail, keyname);
+				on_key_press(_keysym_to_code(keysym));
 				break;
 			}
 			case XCB_KEY_RELEASE: {
@@ -396,9 +391,7 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 				else {
 					printf("  0x%04x released\n", keysym);
 				}
-				const char * keyname = _keysym_to_name(keysym);
-				printf("  it is: %s\n", keyname);
-				on_key_release(kp->detail, keyname);
+				on_key_release(_keysym_to_code(keysym));
 				break;
 			}
 			case XCB_CONFIGURE_NOTIFY: {

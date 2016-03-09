@@ -23,6 +23,8 @@ struct framebuffer {
 	VkImage image;
 	VkImageView view;
 	VkFramebuffer framebuffer;
+	VkImage depth_buf;
+	VkImageView depth_buf_view;
 
 	uint32_t width, height;
 
@@ -46,6 +48,8 @@ struct renderer {
 	VkExtent2D fb_extent;
 	uint32_t fb_count;
 	struct framebuffer * framebuffers;
+	VkDeviceMemory framebuffer_memory;
+	VkDeviceSize framebuffer_memory_size;
 
 	VkRenderPass render_pass;
 	VkDescriptorPool descriptor_pool;
@@ -257,6 +261,14 @@ void create_pipeline(struct renderer * renderer) {
 		.pDynamicStates = dynamic_states,
 	};
 
+	VkPipelineDepthStencilStateCreateInfo dss_ci = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+		.depthTestEnable = VK_TRUE,
+		//.depthCompareOp = VK_COMPARE_OP_LESS,
+		.depthCompareOp = VK_COMPARE_OP_LESS,
+		.depthWriteEnable = VK_TRUE,
+	};
+
 	VkGraphicsPipelineCreateInfo pipeline_ci = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 		.stageCount = 2,
@@ -268,7 +280,7 @@ void create_pipeline(struct renderer * renderer) {
 		.pViewportState = &vs_ci,
 		.pRasterizationState = &rs_ci,
 		.pMultisampleState = &mss_ci,
-		.pDepthStencilState = NULL,
+		.pDepthStencilState = &dss_ci,
 		.pColorBlendState = &cbs_ci,
 		.pDynamicState = &ds_ci,
 
@@ -516,7 +528,8 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 	vkapi.vkCmdSetScissor(cmd_buffer, 0, 1, scissors);
 
 	VkClearValue clear_values[] = {
-		{ .color = { .float32 = { 0.0f, 0.0f, 0.5f, 1.0f } } }
+		{ .color = { .float32 = { 0.0f, 0.0f, 0.5f, 1.0f } } },
+		{ .depthStencil = { .depth = 1.0f } }
 	};
 
 	VkRenderPassBeginInfo render_pass_bi = {
@@ -524,7 +537,7 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 		.renderPass = renderer->render_pass,
 		.framebuffer = fb->framebuffer,
 		.renderArea = { { 0, 0 }, { fb->width, fb->height } },
-		.clearValueCount = 1,
+		.clearValueCount = 2,
 		.pClearValues = clear_values,
 	};
 
@@ -620,6 +633,10 @@ void destroy_pipeline(struct renderer * renderer) {
 	}
 	renderer->memory = NULL;
 	renderer->mapped_memory = NULL;
+	if (renderer->framebuffer_memory) {
+		vkapi.vkFreeMemory(vkapi.device, renderer->framebuffer_memory, NULL);
+	}
+	renderer->framebuffer_memory = NULL;
 	if (renderer->pipeline) vkapi.vkDestroyPipeline(vkapi.device, renderer->pipeline, NULL);
 	renderer->pipeline = NULL;
 	if (renderer->vs_module) vkapi.vkDestroyShaderModule(vkapi.device, renderer->vs_module, NULL);
@@ -647,6 +664,14 @@ VkResult render_init(struct renderer * renderer) {
 			.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 			.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		},
+		{
+			.format = VK_FORMAT_D16_UNORM,
+			.samples = 1,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		},
 	};
 
 	VkAttachmentReference color_attachments[] = {
@@ -663,6 +688,12 @@ VkResult render_init(struct renderer * renderer) {
 		},
 	};
 
+	VkAttachmentReference depth_attachment = {
+		.attachment = 1,
+		.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+	};
+
+
 	uint32_t preserved_attachments[1] = { 0 };
 
 	VkSubpassDescription subpasses[] = {
@@ -672,6 +703,7 @@ VkResult render_init(struct renderer * renderer) {
 			.colorAttachmentCount = 1,
 			.pColorAttachments = color_attachments,
 			.pResolveAttachments = resolve_attachments,
+			.pDepthStencilAttachment = &depth_attachment,
 			.preserveAttachmentCount = 1,
 			.pPreserveAttachments = preserved_attachments,
 		},
@@ -679,7 +711,7 @@ VkResult render_init(struct renderer * renderer) {
 
 	VkRenderPassCreateInfo render_pass_ci = {
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-		.attachmentCount = 1,
+		.attachmentCount = 2,
 		.pAttachments = attachments,
 		.subpassCount = 1,
 		.pSubpasses = subpasses,
@@ -894,6 +926,12 @@ static void destroy_framebuffers(struct renderer * renderer) {
 			if (framebuffers[i].framebuffer) {
 				vkapi.vkDestroyFramebuffer(vkapi.device, framebuffers[i].framebuffer, NULL);
 			}
+			if (framebuffers[i].depth_buf_view) {
+				vkapi.vkDestroyImageView(vkapi.device, framebuffers[i].depth_buf_view, NULL);
+			}
+			if (framebuffers[i].depth_buf) {
+				vkapi.vkDestroyImage(vkapi.device, framebuffers[i].depth_buf, NULL);
+			}
 			if (framebuffers[i].view) {
 				vkapi.vkDestroyImageView(vkapi.device, framebuffers[i].view, NULL);
 			}
@@ -927,10 +965,34 @@ static struct framebuffer * create_framebuffers(struct renderer * renderer) {
 			.layerCount = 1,
 			},
 	};
+	struct VkImageCreateInfo depth_i_ci = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.imageType = VK_IMAGE_TYPE_2D,
+		.format = VK_FORMAT_D16_UNORM,
+		.extent = { .width = renderer->fb_extent.width, .height = renderer->fb_extent.height, .depth = 1 },
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.tiling = VK_IMAGE_TILING_OPTIMAL,
+		.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+	};
+	struct VkImageViewCreateInfo depth_iv_ci = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.format = VK_FORMAT_D16_UNORM,
+		.components = {0},
+		.subresourceRange = {
+			.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+			.levelCount = 1,
+			.layerCount = 1,
+			},
+	};
 	struct VkFramebufferCreateInfo fb_ci = {
 		.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
 		.renderPass = renderer->render_pass,
-		.attachmentCount = 1,
+		.attachmentCount = 2,
 		.width = renderer->fb_extent.width,
 		.height = renderer->fb_extent.height,
 		.layers = 1,
@@ -946,6 +1008,55 @@ static struct framebuffer * create_framebuffers(struct renderer * renderer) {
 				| VK_QUERY_PIPELINE_STATISTIC_CLIPPING_PRIMITIVES_BIT
 				| VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT,
 	};
+	VkDeviceSize depth_buf_offsets[renderer->swapchain_image_count];
+	VkDeviceSize total_memory = 0;
+	for(i = 0; i < renderer->swapchain_image_count; i++) {
+		result = vkapi.vkCreateImage(vkapi.device, &depth_i_ci, NULL, &framebuffers[i].depth_buf);
+		if (result != VK_SUCCESS) {
+			fprintf(stderr, "vkCreateImage failed: %i\n", result);
+			goto error;
+		}
+		VkMemoryRequirements mem_req;
+		vkapi.vkGetImageMemoryRequirements(vkapi.device, framebuffers[i].depth_buf, &mem_req);
+		if (total_memory % mem_req.alignment) {
+			total_memory += mem_req.alignment - (total_memory % mem_req.alignment);
+		}
+		depth_buf_offsets[i] = total_memory;
+		total_memory += mem_req.size;
+	}
+	for (i = 0; i < vkapi.memory_properties.memoryTypeCount; i++) {
+		if ((vkapi.memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+			break;
+		}
+	}
+	if (i == vkapi.memory_properties.memoryTypeCount) {
+		fprintf(stderr, "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT memory not found!\n");
+		i = 0;
+	}
+	if (renderer->framebuffer_memory_size < total_memory) {
+		if (renderer->framebuffer_memory) {
+			vkapi.vkFreeMemory(vkapi.device, renderer->framebuffer_memory, NULL);
+		}
+		VkMemoryAllocateInfo mem_ai = {
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.allocationSize = total_memory,
+			.memoryTypeIndex = i,
+		};
+		result = vkapi.vkAllocateMemory(vkapi.device, &mem_ai, NULL, &renderer->framebuffer_memory);
+		if (result != VK_SUCCESS) {
+			fprintf(stderr, "vkapi.vkAllocateMemory failed: %i\n", result);
+			goto error;
+		}
+		renderer->framebuffer_memory_size = total_memory;
+	}
+	for(i = 0; i < renderer->swapchain_image_count; i++) {
+		result = vkapi.vkBindImageMemory(vkapi.device, framebuffers[i].depth_buf,
+						renderer->framebuffer_memory, depth_buf_offsets[i]);
+		if (result != VK_SUCCESS) {
+			fprintf(stderr, "vkBindImageMemory failed: %i\n", result);
+			goto error;
+		}
+	}
 	for(i = 0; i < renderer->swapchain_image_count; i++) {
 		iv_ci.image = renderer->swapchain_images[i];
 		result = vkapi.vkCreateImageView(vkapi.device, &iv_ci, NULL, &framebuffers[i].view);
@@ -953,7 +1064,14 @@ static struct framebuffer * create_framebuffers(struct renderer * renderer) {
 			fprintf(stderr, "vkCreateImageView failed: %i\n", result);
 			goto error;
 		}
-		fb_ci.pAttachments = &framebuffers[i].view;
+		depth_iv_ci.image = framebuffers[i].depth_buf;
+		result = vkapi.vkCreateImageView(vkapi.device, &depth_iv_ci, NULL, &framebuffers[i].depth_buf_view);
+		if (result != VK_SUCCESS) {
+			fprintf(stderr, "vkCreateImageView failed: %i\n", result);
+			goto error;
+		}
+		VkImageView attachments[2] = { framebuffers[i].view, framebuffers[i].depth_buf_view };
+		fb_ci.pAttachments = attachments;
 		result = vkapi.vkCreateFramebuffer(vkapi.device, &fb_ci, NULL, &framebuffers[i].framebuffer);
 		if (result != VK_SUCCESS) {
 			fprintf(stderr, "vkCreateFramebuffer failed: %i\n", result);
@@ -966,7 +1084,6 @@ static struct framebuffer * create_framebuffers(struct renderer * renderer) {
 			result = vkapi.vkCreateQueryPool(vkapi.device, &qp_ci, NULL, &framebuffers[i].query_pool);
 			if (result != VK_SUCCESS) framebuffers[i].query_pool = VK_NULL_HANDLE;
 		}
-
 	}
 	renderer->fb_count = renderer->swapchain_image_count;
 	return framebuffers;

@@ -106,6 +106,7 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkAllocateMemory);
 	GET_DEV_PROC(vkBeginCommandBuffer);
 	GET_DEV_PROC(vkBindBufferMemory);
+	GET_DEV_PROC(vkBindImageMemory);
 	GET_DEV_PROC(vkCmdBeginRenderPass);
 	GET_DEV_PROC(vkCmdBindDescriptorSets);
 	GET_DEV_PROC(vkCmdBindIndexBuffer);
@@ -125,6 +126,7 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkCreateFence);
 	GET_DEV_PROC(vkCreateFramebuffer);
 	GET_DEV_PROC(vkCreateGraphicsPipelines);
+	GET_DEV_PROC(vkCreateImage);
 	GET_DEV_PROC(vkCreateImageView);
 	GET_DEV_PROC(vkCreatePipelineLayout);
 	GET_DEV_PROC(vkCreateQueryPool);
@@ -139,6 +141,7 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkDestroyDevice);
 	GET_DEV_PROC(vkDestroyFence);
 	GET_DEV_PROC(vkDestroyFramebuffer);
+	GET_DEV_PROC(vkDestroyImage);
 	GET_DEV_PROC(vkDestroyImageView);
 	GET_DEV_PROC(vkDestroyPipeline);
 	GET_DEV_PROC(vkDestroyPipelineLayout);
@@ -153,6 +156,7 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkFreeMemory);
 	GET_DEV_PROC(vkGetBufferMemoryRequirements);
 	GET_DEV_PROC(vkGetDeviceQueue);
+	GET_DEV_PROC(vkGetImageMemoryRequirements);
 	GET_DEV_PROC(vkGetQueryPoolResults);
 	GET_DEV_PROC(vkGetSwapchainImagesKHR);
 	GET_DEV_PROC(vkMapMemory);

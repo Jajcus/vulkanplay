@@ -50,6 +50,7 @@ struct vkapi {
 	DEF_DEV_PROC(vkAllocateMemory);
 	DEF_DEV_PROC(vkBeginCommandBuffer);
 	DEF_DEV_PROC(vkBindBufferMemory);
+	DEF_DEV_PROC(vkBindImageMemory);
 	DEF_DEV_PROC(vkCmdBeginQuery);
 	DEF_DEV_PROC(vkCmdBeginRenderPass);
 	DEF_DEV_PROC(vkCmdBindDescriptorSets);
@@ -71,6 +72,7 @@ struct vkapi {
 	DEF_DEV_PROC(vkCreateFence);
 	DEF_DEV_PROC(vkCreateFramebuffer);
 	DEF_DEV_PROC(vkCreateGraphicsPipelines);
+	DEF_DEV_PROC(vkCreateImage);
 	DEF_DEV_PROC(vkCreateImageView);
 	DEF_DEV_PROC(vkCreatePipelineLayout);
 	DEF_DEV_PROC(vkCreateQueryPool);
@@ -85,6 +87,7 @@ struct vkapi {
 	DEF_DEV_PROC(vkDestroyDevice);
 	DEF_DEV_PROC(vkDestroyFence);
 	DEF_DEV_PROC(vkDestroyFramebuffer);
+	DEF_DEV_PROC(vkDestroyImage);
 	DEF_DEV_PROC(vkDestroyImageView);
 	DEF_DEV_PROC(vkDestroyPipeline);
 	DEF_DEV_PROC(vkDestroyPipelineLayout);
@@ -99,6 +102,7 @@ struct vkapi {
 	DEF_DEV_PROC(vkFreeMemory);
 	DEF_DEV_PROC(vkGetBufferMemoryRequirements);
 	DEF_DEV_PROC(vkGetDeviceQueue);
+	DEF_DEV_PROC(vkGetImageMemoryRequirements);
 	DEF_DEV_PROC(vkGetQueryPoolResults);
 	DEF_DEV_PROC(vkGetSwapchainImagesKHR);
 	DEF_DEV_PROC(vkMapMemory);

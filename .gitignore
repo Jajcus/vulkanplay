@@ -3,6 +3,7 @@
 *~
 .*.swp
 .deps
+assets/heightmap.data
 build
 linalg_test
 log

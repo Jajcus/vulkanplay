@@ -5,6 +5,7 @@
 #include <string.h>
 #include <alloca.h>
 #include <pthread.h>
+#include <sys/stat.h>
 
 #include "main.h"
 #include "vkapi.h"
@@ -152,6 +153,15 @@ int main(int argc, char **argv) {
 	}
 
 	parse_args(argc, argv);
+
+	struct stat st;
+	if (stat("assets", &st) || !S_ISDIR(st.st_mode)) {
+		if (stat("../assets", &st) || !S_ISDIR(st.st_mode)) {
+			fprintf(stderr, "Could not find assets dir\n");
+			exit(1);
+		}
+		chdir("..");
+	}
 
 	result = vkapi_init_instance("vulkan play");
 	if (result != VK_SUCCESS) {

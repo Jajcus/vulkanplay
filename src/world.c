@@ -9,6 +9,7 @@
 #include <errno.h>
 
 #include "models/tetrahedron.h"
+#include "models/sphere.h"
 #include "printmath.h"
 
 const double tick_length = 0.05;
@@ -367,6 +368,10 @@ struct world * create_world(void) {
 	struct model * tetrahedron = create_tetrahedron(0);
 
 	scene_add_object(world->scene, tetrahedron, MAT4_IDENTITY);
+
+	struct model * sphere = create_sphere(1, 8, 1);
+	Mat4 mat = mat4_translate(0.0f, 0.5f, 2.0f);
+	scene_add_object(world->scene, sphere, mat);
 
 	scene_set_eye(world->scene, world->ch_position, make_direction_vector(world->ch_direction));
 

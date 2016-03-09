@@ -27,6 +27,7 @@ struct model * create_tetrahedron(uint32_t material) {
 	uint32_t i;
 
 	struct model * model = (struct model *)calloc(1, sizeof(struct model));
+	model->type = TETRAHEDRON_MODEL;
 	model->vertices = (struct vertex_data *)calloc(VERT_COUNT, sizeof(struct vertex_data));
 	model->vertices_len = VERT_COUNT;
 	memcpy(model->vertices, vertices, VERT_COUNT * sizeof(struct vertex_data));
@@ -41,3 +42,7 @@ struct model * create_tetrahedron(uint32_t material) {
 
 	return model;
 }
+
+const struct model_type tetrahedron_model_type = {
+	.name = "Tetrahedron",
+};

@@ -2,11 +2,14 @@
 #include <malloc.h>
 #include <string.h>
 
-#define MATERIAL_COUNT 1
+#define MATERIAL_COUNT 2
 
 static const struct material materials[MATERIAL_COUNT] = {
 	{
 	.color = { 1.0f, 0.0f, 0.0f, 1.0f},
+	},
+	{
+	.color = { 1.0f, 1.0f, 0.0f, 1.0f},
 	},
 };
 

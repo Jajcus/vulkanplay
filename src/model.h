@@ -10,7 +10,17 @@ struct vertex_data {
 	uint32_t material, a, b, c;
 };
 
+struct model;
+
+struct model_type {
+	const char * name;
+
+	void (*finalize)(struct model * model);
+};
+
 struct model {
+	const struct model_type * type;
+
 	/* vertex positions and normals */
 	struct vertex_data * vertices;
 	uint32_t vertices_len;

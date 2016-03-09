@@ -5,6 +5,9 @@
 
 void destroy_model(struct model * model) {
 
+	if (model->type && model->type->finalize) {
+		model->type->finalize(model);
+	}
 	if (model->vertices) free(model->vertices);
 	if (model->indices) free(model->indices);
 }

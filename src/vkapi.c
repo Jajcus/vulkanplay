@@ -108,9 +108,11 @@ static int _vkapi_init_device_procs(void) {
 	GET_DEV_PROC(vkBindBufferMemory);
 	GET_DEV_PROC(vkCmdBeginRenderPass);
 	GET_DEV_PROC(vkCmdBindDescriptorSets);
+	GET_DEV_PROC(vkCmdBindIndexBuffer);
 	GET_DEV_PROC(vkCmdBindPipeline);
 	GET_DEV_PROC(vkCmdBindVertexBuffers);
 	GET_DEV_PROC(vkCmdDraw);
+	GET_DEV_PROC(vkCmdDrawIndexed);
 	GET_DEV_PROC(vkCmdEndRenderPass);
 	GET_DEV_PROC(vkCmdPipelineBarrier);
 	GET_DEV_PROC(vkCmdResetQueryPool);

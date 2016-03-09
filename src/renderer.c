@@ -54,7 +54,11 @@ struct renderer {
 
 	uint32_t materials_offset;
 	uint32_t vertex_offset;
+	uint32_t vertex_count;
 	uint32_t instance_offset;
+	uint32_t instance_count;
+	uint32_t index_offset;
+	uint32_t index_count;
 
 	VkDeviceMemory memory;
 	VkBuffer buffer;
@@ -291,12 +295,15 @@ void create_pipeline(struct renderer * renderer) {
 		indices_total += model->indices_len;
 	}
 
-	assert(indices_total == 0); // FIXME
-
 	renderer->materials_offset = sizeof(struct uniform_buffer);
 	renderer->vertex_offset = renderer->materials_offset + sizeof(struct material) * renderer->scene->materials_len;
 	renderer->instance_offset = renderer->vertex_offset + sizeof(struct vertex_data) * vertices_total;
-	uint32_t mem_size = renderer->instance_offset + sizeof(struct instance_data) * instances_total;
+	renderer->index_offset = renderer->instance_offset + sizeof(struct instance_data) * instances_total;
+	uint32_t mem_size = renderer->index_offset + sizeof(uint32_t) * indices_total;
+
+	renderer->vertex_count = vertices_total;
+	renderer->instance_count = instances_total;
+	renderer->index_count = indices_total;
 
 	VkBufferCreateInfo buffer_ci = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -345,6 +352,13 @@ void create_pipeline(struct renderer * renderer) {
 			model->vertices,
 			model->vertices_len * sizeof(struct vertex_data)
 			);
+		if (model->indices && model->indices_len) {
+			memcpy(renderer->mapped_memory + renderer->index_offset
+					+ obj->r.index_index * sizeof(uint32_t),
+				model->indices,
+				model->indices_len * sizeof(uint32_t)
+				);
+		}
 	}
 
 	scene_unlock(renderer->scene);
@@ -535,6 +549,10 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 
 	vkapi.vkCmdBindVertexBuffers(cmd_buffer, 0, 2, buffers, offsets);
 
+	if (renderer->index_count) {
+		vkapi.vkCmdBindIndexBuffer(cmd_buffer, renderer->buffer, renderer->index_offset, VK_INDEX_TYPE_UINT32);
+	}
+
 	vkapi.vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
 
 	vkapi.vkCmdBindDescriptorSets(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline_layout,
@@ -544,7 +562,12 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 		struct scene_object * obj = &renderer->scene->objects[i];
 		struct model * mod = obj->model;
 
-		vkapi.vkCmdDraw(cmd_buffer, mod->vertices_len, 1, obj->r.vertex_index, obj->r.instance_index);
+		if (mod->indices) {
+			vkapi.vkCmdDrawIndexed(cmd_buffer, mod->indices_len, 1, obj->r.index_index, obj->r.vertex_index, obj->r.instance_index);
+		}
+		else {
+			vkapi.vkCmdDraw(cmd_buffer, mod->vertices_len, 1, obj->r.vertex_index, obj->r.instance_index);
+		}
 	}
 
 	vkapi.vkCmdEndRenderPass(cmd_buffer);

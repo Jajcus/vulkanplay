@@ -53,9 +53,11 @@ struct vkapi {
 	DEF_DEV_PROC(vkCmdBeginQuery);
 	DEF_DEV_PROC(vkCmdBeginRenderPass);
 	DEF_DEV_PROC(vkCmdBindDescriptorSets);
+	DEF_DEV_PROC(vkCmdBindIndexBuffer);
 	DEF_DEV_PROC(vkCmdBindPipeline);
 	DEF_DEV_PROC(vkCmdBindVertexBuffers);
 	DEF_DEV_PROC(vkCmdDraw);
+	DEF_DEV_PROC(vkCmdDrawIndexed);
 	DEF_DEV_PROC(vkCmdEndQuery);
 	DEF_DEV_PROC(vkCmdEndRenderPass);
 	DEF_DEV_PROC(vkCmdPipelineBarrier);

@@ -34,10 +34,10 @@ struct model * create_sphere(uint32_t material, int detail, float radius) {
 
 	sphere->model.vertices[0].pos = north_p;
 	sphere->model.vertices[0].normal = up;
-	sphere->model.vertices[0].material = 0;
+	sphere->model.vertices[0].material = material;
 	sphere->model.vertices[vert_count - 1].pos = south_p;
 	sphere->model.vertices[vert_count - 1].normal = down;
-	sphere->model.vertices[vert_count - 1].material = 0;
+	sphere->model.vertices[vert_count - 1].material = material;
 
 	float lat_step = M_PI / ( detail + 1 );
 	float lon_step = 2 * M_PI / ( detail + 2 );

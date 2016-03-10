@@ -12,7 +12,7 @@ void destroy_model(struct model * model) {
 	if (model->indices) free(model->indices);
 }
 
-static Vec4 normal(Vec4 a, Vec4 b, Vec4 c) {
+Vec4 triangle_normal(Vec4 a, Vec4 b, Vec4 c) {
 
 	Vec4 result;
 	Vec4 U, V;
@@ -40,9 +40,8 @@ void model_compute_normals(struct model * model) {
 	struct vertex_data * verts = model->vertices;
 
 	for(i = 0; i < model->vertices_len; i += 3) {
-		Vec4 t_normal = normal(verts[i].pos, verts[i + 1].pos, verts[i + 2].pos);
+		Vec4 t_normal = triangle_normal(verts[i].pos, verts[i + 1].pos, verts[i + 2].pos);
 		verts[i].normal = vec4_norm(t_normal);
-		verts[i].normal.w = 1.0f;
 		verts[i + 1].normal = verts[i].normal;
 		verts[i + 2].normal = verts[i].normal;
 	}

@@ -36,6 +36,7 @@ struct model {
 void destroy_model(struct model * model);
 
 // helper functions for models
+Vec4 triangle_normal(Vec4 a, Vec4 b, Vec4 c);
 
 // compute normals for flat surfaces
 void model_compute_normals(struct model * model);

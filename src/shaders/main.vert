@@ -4,7 +4,7 @@ struct material_s {
 	vec4 color;
 };
 
-layout(constant_id = 1) const int materials_len = 1;
+layout(constant_id = 1) const int materials_len = 3;
 
 layout(std140, binding = 0) uniform buf {
 	vec4 light_pos;
@@ -28,7 +28,7 @@ out gl_PerVertex {
 };
 
 const vec4 light_ambient = vec4( 0.05f, 0.05f, 0.05f, 1.0f );
-const vec4 light_diffuse = vec4( 1.0f, 1.0f, 1.0f, 1.0f );
+const vec4 light_diffuse = vec4( 2.0f, 2.0f, 2.0f, 1.0f );
 
 void main() {
 
@@ -37,15 +37,15 @@ void main() {
 	material_s material = ubuf.materials[in_material];
 
 	vec4 ambient = light_ambient * material.color;
-	ambient = clamp(ambient, 0.0, 1.0); 
-	
+	ambient = clamp(ambient, 0.0, 1.0);
+
 	vec3 V = vec3(mv_matrix * in_position);
 	vec3 N = vec3(normalize(normal_matrix * in_normal));
 	vec3 L = normalize(vec3(mv_matrix * ubuf.light_pos) - V);
 
-	vec4 diffuse = light_diffuse * material.color * max(dot(N, L), 0.0); 
-	
-	diffuse = clamp(diffuse, 0.0, 1.0); 
+	vec4 diffuse = light_diffuse * material.color * max(dot(N, L), 0.0);
+
+	diffuse = clamp(diffuse, 0.0, 1.0);
 
 	v_color = ambient + diffuse;
 }

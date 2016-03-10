@@ -8,6 +8,7 @@
 #include <string.h>
 #include <errno.h>
 
+#include "models/terrain.h"
 #include "models/tetrahedron.h"
 #include "models/sphere.h"
 #include "printmath.h"
@@ -46,6 +47,7 @@ pthread_cond_t in_queue_event = PTHREAD_COND_INITIALIZER;
 
 struct world {
 	struct scene * scene;
+	struct model * terrain;
 
 	// character position and direction
 	Vec3 ch_position;
@@ -337,6 +339,7 @@ void * world_loop(void * arg) {
 		Vec34 dir_movement;
 		dir_movement.v4 = mat4_mul_vec4(rot_matrix, world->ch_movement);
 		world->ch_position = vec3_add(world->ch_position, dir_movement.v3);
+		world->ch_position.y = sample_terrain_height(world->terrain, world->ch_position.x, world->ch_position.z) + 2.0f;
 		print_vec3("position:", world->ch_position);
 
 		// apply rotation
@@ -352,7 +355,7 @@ void * world_loop(void * arg) {
 	return NULL;
 }
 
-const Vec3 initial_position ={0.0, 0.0, -5.0};
+const Vec3 initial_position = {0.0, 1.0, -10.0};
 const double initial_direction = 0.0;
 
 struct world * create_world(void) {
@@ -361,16 +364,25 @@ struct world * create_world(void) {
 
 	pthread_mutex_init(&world->mutex, NULL);
 
-	world->ch_position = initial_position;
 	world->ch_direction = initial_direction;
 
 	world->scene = create_scene();
+
+	world->terrain = create_terrain(1024, 1024, "assets/heightmap.data", 32);
+
+	world->ch_position = initial_position;
+	world->ch_position.y = sample_terrain_height(world->terrain, world->ch_position.x, world->ch_position.z) + 2.0f;
+
+	scene_add_object(world->scene, world->terrain, MAT4_IDENTITY);
+
 	struct model * tetrahedron = create_tetrahedron(0);
 
-	scene_add_object(world->scene, tetrahedron, MAT4_IDENTITY);
+	Mat4 tth_matrix = mat4_translate(0, sample_terrain_height(world->terrain, 0, 0), 0);
+
+	scene_add_object(world->scene, tetrahedron, tth_matrix);
 
 	struct model * sphere = create_sphere(1, 8, 1);
-	Mat4 mat = mat4_translate(0.0f, 0.5f, 2.0f);
+	Mat4 mat = mat4_translate(0.0f, 0.5f + sample_terrain_height(world->terrain, 0.0f, 2.0f), 2.0f);
 	scene_add_object(world->scene, sphere, mat);
 
 	scene_set_eye(world->scene, world->ch_position, make_direction_vector(world->ch_direction));

@@ -2,14 +2,17 @@
 #include <malloc.h>
 #include <string.h>
 
-#define MATERIAL_COUNT 2
+#define MATERIAL_COUNT 3
 
 static const struct material materials[MATERIAL_COUNT] = {
 	{
-	.color = { 1.0f, 0.0f, 0.0f, 1.0f},
+	.color = { 0.9f, 0.0f, 0.0f, 1.0f},
 	},
 	{
-	.color = { 1.0f, 1.0f, 0.0f, 1.0f},
+	.color = { 0.9f, 0.9f, 0.0f, 1.0f},
+	},
+	{
+	.color = { 0.0f, 0.8f, 0.0f, 1.0f},
 	},
 };
 
@@ -26,10 +29,10 @@ struct scene * create_scene(void) {
 	scene->eye_dir.y =  0.0f;
 	scene->eye_dir.z =  1.0f;
 
-	scene->light_pos.x =   2.0f;
-	scene->light_pos.y =   2.0f;
-	scene->light_pos.z = -10.0f;
-	scene->light_pos.w =   1.0f;
+	scene->light_pos.x =   100.0f;
+	scene->light_pos.y =   500.0f;
+	scene->light_pos.z = -2000.0f;
+	scene->light_pos.w =     1.0f;
 
 	scene->objects_size = 10;
 	scene->objects = (struct scene_object *)calloc(scene->objects_size, sizeof(struct scene_object));

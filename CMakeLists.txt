@@ -10,6 +10,7 @@ add_executable(vulkanplay
 		src/model.c
 		src/models/sphere.c
 		src/models/tetrahedron.c
+		src/models/terrain.c
 		src/renderer.c
 		src/scene.c
 		src/surface.c

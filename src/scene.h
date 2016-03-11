@@ -5,7 +5,16 @@
 #include <pthread.h>
 
 struct material {
-	Vec4 color;
+	Vec4 ambient_color;
+	Vec4 diffuse_color;
+	Vec4 specular_color;
+	float shininess, pad1, pad2, pad3;
+};
+
+struct light {
+	Vec4 position;
+	Vec4 diffuse;
+	Vec4 specular;
 };
 
 struct scene_object {
@@ -28,7 +37,10 @@ struct scene_object {
 
 struct scene {
 	Vec3 eye_pos, eye_dir;
-	Vec4 light_pos;
+
+	Vec4 ambient_light;
+	const struct light * lights;
+	uint32_t lights_len;
 
 	struct scene_object * objects;
 	uint32_t objects_len;

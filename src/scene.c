@@ -4,17 +4,37 @@
 
 #define MATERIAL_COUNT 3
 
-static const struct material materials[MATERIAL_COUNT] = {
+static const struct material MATERIALS[MATERIAL_COUNT] = {
 	{
-	.color = { 0.9f, 0.0f, 0.0f, 1.0f},
+	.ambient_color = { 0.9f, 0.0f, 0.0f, 1.0f},
+	.diffuse_color = { 0.9f, 0.0f, 0.0f, 1.0f},
+	.specular_color = { 0.1f, 0.0f, 0.0f, 1.0f},
+	.shininess = 10,
 	},
 	{
-	.color = { 0.9f, 0.9f, 0.0f, 1.0f},
+	.ambient_color = { 0.9f, 0.9f, 0.0f, 1.0f},
+	.diffuse_color = { 0.5f, 0.5f, 0.0f, 1.0f},
+	.specular_color = { 1.0f, 1.0f, 0.5f, 1.0f},
+	.shininess = 200,
 	},
 	{
-	.color = { 0.0f, 0.8f, 0.0f, 1.0f},
+	.ambient_color = { 0.05f, 0.5f, 0.0f, 1.0f},
+	.diffuse_color = { 0.05f, 0.5f, 0.0f, 1.0f},
+	.specular_color = { 0.0f, 0.1f, 0.0f, 1.0f},
+	.shininess = 10,
 	},
 };
+
+#define LIGHT_COUNT 1
+const static struct light LIGHTS[LIGHT_COUNT] = {
+	{
+		.position = { 100.0f, 2000.0f, -2000.0f, 1.0f },
+		.diffuse = { 1.0f, 1.0f, 1.0f, 1.0f },
+		.specular = { 1.0f, 1.0f, 1.0f, 1.0f },
+	}
+};
+
+const Vec4 AMBIENT_LIGHT = { 0.02f, 0.02f, 0.02, 1.0f };
 
 struct scene * create_scene(void) {
 
@@ -29,16 +49,15 @@ struct scene * create_scene(void) {
 	scene->eye_dir.y =  0.0f;
 	scene->eye_dir.z =  1.0f;
 
-	scene->light_pos.x =   100.0f;
-	scene->light_pos.y =   500.0f;
-	scene->light_pos.z = -2000.0f;
-	scene->light_pos.w =     1.0f;
+	scene->ambient_light = AMBIENT_LIGHT;
+	scene->lights = LIGHTS;
+	scene->lights_len = LIGHT_COUNT;
 
 	scene->objects_size = 10;
 	scene->objects = (struct scene_object *)calloc(scene->objects_size, sizeof(struct scene_object));
 	scene->objects_len = 0;
 
-	scene->materials = materials;
+	scene->materials = MATERIALS;
 	scene->materials_len = MATERIAL_COUNT;
 
 	scene->s.view_dirty = 1;

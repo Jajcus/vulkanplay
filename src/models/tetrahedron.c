@@ -16,10 +16,10 @@
 #define VERT_COUNT TRIANGLE_COUNT * 3
 
 static const struct vertex_data vertices[VERT_COUNT] = {
-	{ V1, NULLVEC, 0 }, { V2, NULLVEC, 0 }, {V4, NULLVEC, 0 },
-	{ V1, NULLVEC, 0 }, { V3, NULLVEC, 0 }, {V2, NULLVEC, 0 },
-	{ V1, NULLVEC, 0 }, { V4, NULLVEC, 0 }, {V3, NULLVEC, 0 },
-	{ V2, NULLVEC, 0 }, { V3, NULLVEC, 0 }, {V4, NULLVEC, 0 },
+	{ V1, NULLVEC, 0, V_FLAG_FLAT }, { V2, NULLVEC, 0, V_FLAG_FLAT }, {V4, NULLVEC, 0, V_FLAG_FLAT },
+	{ V1, NULLVEC, 0, V_FLAG_FLAT }, { V3, NULLVEC, 0, V_FLAG_FLAT }, {V2, NULLVEC, 0, V_FLAG_FLAT },
+	{ V1, NULLVEC, 0, V_FLAG_FLAT }, { V4, NULLVEC, 0, V_FLAG_FLAT }, {V3, NULLVEC, 0, V_FLAG_FLAT },
+	{ V2, NULLVEC, 0, V_FLAG_FLAT }, { V3, NULLVEC, 0, V_FLAG_FLAT }, {V4, NULLVEC, 0, V_FLAG_FLAT },
 };
 
 struct model * create_tetrahedron(uint32_t material) {

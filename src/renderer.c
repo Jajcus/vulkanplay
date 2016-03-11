@@ -57,6 +57,7 @@ struct renderer {
 	VkPipeline pipeline;
 
 	uint32_t materials_offset;
+	uint32_t lights_offset;
 	uint32_t vertex_offset;
 	uint32_t vertex_count;
 	uint32_t instance_offset;
@@ -89,8 +90,10 @@ struct renderer {
 };
 
 struct uniform_buffer {
-	Vec4 light_pos;
-	struct material materials[];
+	Mat4 v_matrix;
+	Vec4 ambient_light;
+	// struct material materials[];
+	// struct light lights[];
 };
 
 struct instance_data {
@@ -114,7 +117,7 @@ void create_pipeline(struct renderer * renderer) {
 		{
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 			.descriptorCount = 1,
-			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 		}
 	};
 
@@ -178,13 +181,15 @@ void create_pipeline(struct renderer * renderer) {
 		},
 	};
 
-	VkVertexInputAttributeDescription vertex_attr_descr[15] = {
+	VkVertexInputAttributeDescription vertex_attr_descr[16] = {
 		// in_position
 		{ .location = 0, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 0, },
 		// in_normal
 		{ .location = 1, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = sizeof(Vec4), },
 		// in_material
 		{ .location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_UINT,   .offset = 2 * sizeof(Vec4), },
+		// in_flags
+		{ .location = 3, .binding = 0, .format = VK_FORMAT_R32G32B32A32_UINT,   .offset = 2 * sizeof(Vec4) + sizeof(float), },
 
 		// mv_matrix
 		{ .location = 4, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 0, },
@@ -209,7 +214,7 @@ void create_pipeline(struct renderer * renderer) {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.vertexBindingDescriptionCount = 2,
 		.pVertexBindingDescriptions = vertex_binding_descr,
-		.vertexAttributeDescriptionCount = 15,
+		.vertexAttributeDescriptionCount = 16,
 		.pVertexAttributeDescriptions = vertex_attr_descr,
 	};
 
@@ -308,7 +313,8 @@ void create_pipeline(struct renderer * renderer) {
 	}
 
 	renderer->materials_offset = sizeof(struct uniform_buffer);
-	renderer->vertex_offset = renderer->materials_offset + sizeof(struct material) * renderer->scene->materials_len;
+	renderer->lights_offset = renderer->materials_offset + sizeof(struct material) * renderer->scene->materials_len;
+	renderer->vertex_offset = renderer->lights_offset + sizeof(struct light) * renderer->scene->lights_len;
 	renderer->instance_offset = renderer->vertex_offset + sizeof(struct vertex_data) * vertices_total;
 	renderer->index_offset = renderer->instance_offset + sizeof(struct instance_data) * instances_total;
 	uint32_t mem_size = renderer->index_offset + sizeof(uint32_t) * indices_total;
@@ -354,6 +360,11 @@ void create_pipeline(struct renderer * renderer) {
 		renderer->scene->materials,
 		sizeof(struct material) * renderer->scene->materials_len
 		);
+	memcpy(renderer->mapped_memory + renderer->lights_offset,
+		renderer->scene->lights,
+		sizeof(struct light) * renderer->scene->lights_len
+		);
+
 
 	for(i = 0; i < renderer->scene->objects_len; i++) {
 		struct scene_object * obj = &renderer->scene->objects[i];
@@ -390,7 +401,9 @@ void create_pipeline(struct renderer * renderer) {
 		{
 			.buffer = renderer->buffer,
 			.offset = 0,
-			.range = sizeof(struct uniform_buffer) + renderer->scene->materials_len * sizeof(struct material),
+			.range = sizeof(struct uniform_buffer)
+				+ renderer->scene->materials_len * sizeof(struct material)
+				+ renderer->scene->lights_len * sizeof(struct light),
 		}
 	};
 
@@ -458,7 +471,8 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 		inst->normal_matrix = mat4_transpose(imv_matrix);
 	}
 
-	uniform_buffer.light_pos = renderer->scene->light_pos;
+	uniform_buffer.ambient_light = renderer->scene->ambient_light;
+	uniform_buffer.v_matrix = renderer->v_matrix;
 
 	memcpy(renderer->mapped_memory, &uniform_buffer, sizeof(uniform_buffer));
 

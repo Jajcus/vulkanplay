@@ -4,10 +4,12 @@
 #include "linalg.h"
 #include <stdint.h>
 
+#define V_FLAG_FLAT 1
+
 struct vertex_data {
 	Vec4 pos;
 	Vec4 normal;
-	uint32_t material, a, b, c;
+	uint32_t material, flags, pad1, pad2;
 };
 
 struct model;

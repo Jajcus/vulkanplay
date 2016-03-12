@@ -3,7 +3,7 @@
 size="$1"
 target="$2"
 
-trap ': rm -f "$target".mask.png "$target".ter.png 2>/dev/null' EXIT
+trap 'rm -f "$target".mask.png "$target".ter.png 2>/dev/null' EXIT
 
 if [ -z "$size" -o -z "$target" ] ; then
 	echo "Usage:" >&2

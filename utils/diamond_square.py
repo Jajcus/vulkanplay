@@ -107,12 +107,12 @@ def main():
 
     array = numpy.zeros((args.size + 1, args.size + 1), dtype=numpy.float32)
 
-    array[0,0] = scaled_random(10)
-    array[0,args.size] = scaled_random(1)
-    array[args.size,0] = scaled_random(1)
-    array[args.size,args.size] = scaled_random(1)
+    array[0,0] = scaled_random(2)
+    array[0,args.size] = scaled_random(2)
+    array[args.size,0] = scaled_random(2)
+    array[args.size,args.size] = scaled_random(2)
 
-    diamond_square(array, args.size, 10.0, 0.5)
+    diamond_square(array, args.size, 1.0, 0.5)
 
     minimum = numpy.amin(array)
     maximum = numpy.amax(array)

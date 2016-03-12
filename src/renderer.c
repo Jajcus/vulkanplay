@@ -21,6 +21,7 @@
 struct framebuffer {
 
 	VkImage image;
+	bool image_initialized;
 	VkImageView view;
 	VkFramebuffer framebuffer;
 	VkImage depth_buf;
@@ -493,9 +494,9 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 	int same_queue = vkapi.p_queue_family == vkapi.g_queue_family;
 	const VkImageMemoryBarrier acquire_image_b = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-		.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT,
+		.srcAccessMask = fb->image_initialized ? VK_ACCESS_MEMORY_READ_BIT : 0,
 		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-		.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		.oldLayout = fb->image_initialized ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_UNDEFINED,
 		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.srcQueueFamilyIndex = same_queue ? VK_QUEUE_FAMILY_IGNORED : vkapi.p_queue_family,
 		.dstQueueFamilyIndex = same_queue ? VK_QUEUE_FAMILY_IGNORED : vkapi.g_queue_family,
@@ -513,6 +514,8 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 					VK_DEPENDENCY_BY_REGION_BIT,
 					0, NULL, 0, NULL,
 					1, &acquire_image_b);
+
+	fb->image_initialized = true;
 
 	if (fb->query_pool) {
 		vkapi.vkCmdResetQueryPool(cmd_buffer, fb->query_pool, 0, 1);
@@ -683,7 +686,7 @@ VkResult render_init(struct renderer * renderer) {
 			.samples = 1,
 			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 			.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 			.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 		},
 	};
@@ -990,7 +993,7 @@ static struct framebuffer * create_framebuffers(struct renderer * renderer) {
 		.tiling = VK_IMAGE_TILING_OPTIMAL,
 		.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-		.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
 	struct VkImageViewCreateInfo depth_iv_ci = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,

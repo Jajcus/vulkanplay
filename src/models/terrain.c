@@ -101,11 +101,11 @@ struct model * create_terrain(uint32_t width, uint32_t depth, const char * heigh
 				verts[v + 5].normal = n2;
 
 				indices[ind++] = v;
+				indices[ind++] = v2;
+				indices[ind++] = v3;
 				indices[ind++] = v + 1;
-				indices[ind++] = v + 2;
-				indices[ind++] = v + 3;
-				indices[ind++] = v + 4;
-				indices[ind++] = v + 5;
+				indices[ind++] = v3;
+				indices[ind++] = v4;
 			}
 			v += 6;
 			x += x_step;

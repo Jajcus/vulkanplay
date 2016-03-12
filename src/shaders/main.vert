@@ -25,7 +25,7 @@ layout(std140, binding = 0) uniform buf {
 	light_s lights[lights_len];
 } ubuf;
 
-/* veertex data */
+/* vertex data */
 layout(location = 0) in vec4 in_position;
 layout(location = 1) in vec4 in_normal;
 layout(location = 2) in uint in_material;

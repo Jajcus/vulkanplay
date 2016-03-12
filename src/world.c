@@ -361,7 +361,7 @@ struct world * create_world(void) {
 
 	world->scene = create_scene();
 
-	world->terrain = create_terrain(1024, 1024, "assets/heightmap.data", 32);
+	world->terrain = create_terrain(256, 256, "assets/heightmap.data", 32);
 
 	world->ch_position = initial_position;
 	world->ch_position.y = sample_terrain_height(world->terrain, world->ch_position.x, world->ch_position.z) + 2.0f;

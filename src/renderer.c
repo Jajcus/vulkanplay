@@ -454,7 +454,7 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 
 	Vec3 up = {0.0f, -1.0f, 0.0};
 
-	renderer->p_matrix = mat4_perspective((float)deg_to_rad(45.0f), 1.0f, 1.0f, 100.0f);
+	renderer->p_matrix = mat4_perspective((float)deg_to_rad(45.0f), 1.0f, 1.0f, 500.0f);
 
 	renderer->v_matrix = mat4_view(renderer->scene->eye_pos, renderer->scene->eye_dir, up);
 

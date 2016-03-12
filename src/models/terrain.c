@@ -53,9 +53,9 @@ struct model * create_terrain(uint32_t width, uint32_t depth, const char * heigh
 		b_read += nbytes;
 	}
 
-	struct vertex_data * verts = (struct vertex_data *)calloc(vert_count, sizeof(struct vertex_data));
+	struct vertex_data * verts = (struct vertex_data *)calloc(vert_count * 6, sizeof(struct vertex_data));
 	terrain->model.vertices = verts;
-	terrain->model.vertices_len = vert_count;
+	terrain->model.vertices_len = vert_count * 6;
 	terrain->model.triangles = (width - 1) * (depth - 1) * 2;
 	uint32_t * indices = (uint32_t *)malloc(terrain->model.triangles * 3 * sizeof(uint32_t));
 	terrain->model.indices = indices;
@@ -74,8 +74,12 @@ struct model * create_terrain(uint32_t width, uint32_t depth, const char * heigh
 			Vec4 normal = { 0.0f, 1.0f, 0.0f, 0.0f };
 			verts[v].pos = pos;
 			verts[v].material = 2;
+			verts[v].normal = normal;
+			verts[v].flags = V_FLAG_FLAT;
+			uint32_t k;
+			for(k = 1; k < 6; k++) verts[v + k] = verts[v];
 			if (i > 0 && j > 0) {
-				int v2 = v - width, v3 = v - width - 1, v4 = v - 1;
+				int v2 = v - width * 6, v3 = v - width * 6 - 6, v4 = v - 6;
 				/*    v4----v
 				 *    | 2 / |
 				 *    | / 1 |
@@ -84,21 +88,26 @@ struct model * create_terrain(uint32_t width, uint32_t depth, const char * heigh
 				Vec4 n1 = triangle_normal(verts[v].pos, verts[v2].pos, verts[v3].pos);
 				Vec4 n2 = triangle_normal(verts[v].pos, verts[v3].pos, verts[v4].pos);
 
-				normal = vec4_norm(vec4_add(n1, n2));
+				verts[v].normal = n1;
+				verts[v + 1].pos = verts[v2].pos;
+				verts[v + 1].normal = n1;
+				verts[v + 2].pos = verts[v3].pos;
+				verts[v + 2].normal = n1;
 
-				verts[v2].normal = vec4_norm(vec4_add(verts[v2].normal, normal));
-				verts[v3].normal = vec4_norm(vec4_add(verts[v3].normal, normal));
-				verts[v4].normal = vec4_norm(vec4_add(verts[v4].normal, normal));
+				verts[v + 3].normal = n2;
+				verts[v + 4].pos = verts[v3].pos;
+				verts[v + 4].normal = n2;
+				verts[v + 5].pos = verts[v4].pos;
+				verts[v + 5].normal = n2;
 
 				indices[ind++] = v;
-				indices[ind++] = v2;
-				indices[ind++] = v3;
-				indices[ind++] = v;
-				indices[ind++] = v3;
-				indices[ind++] = v4;
+				indices[ind++] = v + 1;
+				indices[ind++] = v + 2;
+				indices[ind++] = v + 3;
+				indices[ind++] = v + 4;
+				indices[ind++] = v + 5;
 			}
-			verts[v].normal = normal;
-			v ++;
+			v += 6;
 			x += x_step;
 		}
 		z += z_step;

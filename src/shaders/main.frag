@@ -60,6 +60,7 @@ void main() {
 				specular = clamp(specular, 0.0, 1.0);
 				f_color += specular;
 			}
+
 		}
 	}
 }

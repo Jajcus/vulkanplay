@@ -276,7 +276,6 @@ struct plat_surface* plat_xcb_get_surface(void) {
 		printf("vkCreateXcbSurfaceKHR failed: %i\n", result);
 		goto error;
 	}
-	printf("vkCreateXcbSurfaceKHR OK\n");
 
 	surf->plat_surface.event_loop = plat_xcb_event_loop;
 	surf->plat_surface.destroy = plat_xcb_destroy_surface;
@@ -320,10 +319,7 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 		next_event = NULL;
 		switch (event->response_type & ~0x80) {
 			case XCB_EXPOSE: {
-				xcb_expose_event_t *expose = (xcb_expose_event_t *)event;
-
-				printf("Window %li exposed. Region to be redrawn at location (%li ,%li), with dimension (%li,%li)\n",
-					(long)expose->window, (long)expose->x, (long)expose->y, (long)expose->width, (long)expose->height );
+				// xcb_expose_event_t *expose = (xcb_expose_event_t *)event;
 				break;
 			}
 			case XCB_BUTTON_PRESS: {
@@ -362,7 +358,6 @@ void plat_xcb_event_loop(struct plat_surface *surf) {
 			}
 			case XCB_MOTION_NOTIFY: {
 				xcb_motion_notify_event_t *bp = (xcb_motion_notify_event_t *)event;
-				printf("Mouse moved at (%4i, %4i)\n", bp->event_x, bp->event_y);
 				int button = 0;
 				if ((bp->state & XCB_KEY_BUT_MASK_BUTTON_1)) button |= LEFT_BUTTON;
 				if ((bp->state & XCB_KEY_BUT_MASK_BUTTON_2)) button |= MIDDLE_BUTTON;

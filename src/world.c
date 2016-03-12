@@ -260,10 +260,6 @@ void world_process_key_event(struct world * world, struct input_event event) {
 }
 void world_continue_movement(struct world * world, double now) {
 
-	printf("forward: %f, back: %f, left: %f, rigth: %f, lturn: %f, rturn: %f\n",
-			world->moving_forward, world->moving_back,
-			world->moving_left, world->moving_right,
-			world->turning_left, world->turning_right);
 	if (world->moving_forward && world->moving_forward < now) {
 		world->ch_movement.z += move_rate * (now - world->moving_forward);
 		world->moving_forward = now;
@@ -334,17 +330,14 @@ void * world_loop(void * arg) {
 		// transform world
 
 		// apply movement
-		print_vec4("movement:", world->ch_movement);
 		Mat4 rot_matrix = mat4_rotate_Y(MAT4_IDENTITY, -deg_to_rad(world->ch_direction));
 		Vec34 dir_movement;
 		dir_movement.v4 = mat4_mul_vec4(rot_matrix, world->ch_movement);
 		world->ch_position = vec3_add(world->ch_position, dir_movement.v3);
 		world->ch_position.y = sample_terrain_height(world->terrain, world->ch_position.x, world->ch_position.z) + 2.0f;
-		print_vec3("position:", world->ch_position);
 
 		// apply rotation
 		world->ch_direction += world->ch_rotation;
-		printf("rotation: %5.2f  direction: %5.2f\n", world->ch_rotation, world->ch_direction);
 
 		// update scene eye
 		scene_set_eye(world->scene, world->ch_position, make_direction_vector(world->ch_direction));

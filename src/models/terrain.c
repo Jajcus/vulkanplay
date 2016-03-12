@@ -23,7 +23,7 @@ struct model * create_terrain(uint32_t width, uint32_t depth, const char * heigh
 	fp = fopen(heightmap_path, "rb");
 	if (!fp) {
 		perror(heightmap_path);
-		return NULL;
+		fp = NULL;
 	}
 
 	struct terrain_model * terrain = (struct terrain_model *)calloc(1,
@@ -35,7 +35,7 @@ struct model * create_terrain(uint32_t width, uint32_t depth, const char * heigh
 	float * heightmap = terrain->heightmap;
 
 	uint32_t b_read = 0;
-	while(b_read < vert_count) {
+	while(fp && b_read < vert_count) {
 		uint32_t nbytes = fread(buf, sizeof(unsigned char), 4096, fp);
 		if (nbytes < 4096 && nbytes < vert_count - b_read) {
 			if (ferror(fp)) {
@@ -44,9 +44,7 @@ struct model * create_terrain(uint32_t width, uint32_t depth, const char * heigh
 			else {
 				fprintf(stderr, "%s - unexpected EOF", heightmap_path);
 			}
-			fclose(fp);
-			free(terrain);
-			return NULL;
+			fp = NULL;
 		}
 		uint32_t i;
 		for(i = 0; i < nbytes; i++) {

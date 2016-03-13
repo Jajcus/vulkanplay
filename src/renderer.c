@@ -154,18 +154,42 @@ void create_pipeline(struct renderer * renderer) {
 
 	vkapi.vkCreateShaderModule(vkapi.device, &fs_module_ci, NULL, &renderer->fs_module);
 
+	VkSpecializationMapEntry spec_map[2] = {
+		{
+			.constantID = 1,
+			.offset = 0,
+			.size = sizeof(uint32_t),
+		},
+		{
+			.constantID = 2,
+			.offset = sizeof(uint32_t),
+			.size = sizeof(uint32_t),
+		},
+	};
+
+	uint32_t spec_data[2] = { renderer->scene->materials_len, renderer->scene->lights_len };
+
+	VkSpecializationInfo spec_i = {
+		.mapEntryCount = 2,
+		.pMapEntries = spec_map,
+		.dataSize = 2 * sizeof(uint32_t),
+		.pData = spec_data,
+	};
+
 	VkPipelineShaderStageCreateInfo shader_stage_ci[] = {
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_VERTEX_BIT,
 			.module = renderer->vs_module,
 			.pName = "main",
+			.pSpecializationInfo = &spec_i,
 		},
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 			.module = renderer->fs_module,
 			.pName = "main",
+			.pSpecializationInfo = &spec_i,
 		},
 	};
 

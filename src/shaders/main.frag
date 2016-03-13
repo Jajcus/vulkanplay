@@ -15,7 +15,7 @@ struct light_s {
 	vec4 specular;
 };
 
-layout(constant_id = 1) const uint materials_len = 3;
+layout(constant_id = 1) const uint materials_len = 7;
 layout(constant_id = 2) const uint lights_len = 1;
 
 layout(std140, binding = 0) uniform buf {

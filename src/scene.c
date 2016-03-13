@@ -1,27 +1,50 @@
 #include "scene.h"
 #include <malloc.h>
 #include <string.h>
-
-#define MATERIAL_COUNT 3
+#include "materials.h"
 
 static const struct material MATERIALS[MATERIAL_COUNT] = {
-	{
+	{ // RED
 	.ambient_color = { 0.9f, 0.0f, 0.0f, 1.0f},
 	.diffuse_color = { 0.9f, 0.0f, 0.0f, 1.0f},
 	.specular_color = { 0.1f, 0.0f, 0.0f, 1.0f},
 	.shininess = 10,
 	},
-	{
+	{ // YELLOW
 	.ambient_color = { 0.9f, 0.9f, 0.0f, 1.0f},
 	.diffuse_color = { 0.5f, 0.5f, 0.0f, 1.0f},
 	.specular_color = { 1.0f, 1.0f, 0.5f, 1.0f},
 	.shininess = 200,
 	},
-	{
+	{ // GRASS
 	.ambient_color = { 0.05f, 0.5f, 0.0f, 1.0f},
 	.diffuse_color = { 0.05f, 0.5f, 0.0f, 1.0f},
 	.specular_color = { 0.0f, 0.1f, 0.0f, 1.0f},
 	.shininess = 10,
+	},
+	{ // WATER
+	.ambient_color = { 0.00f, 0.0f, 0.05f, 1.0f},
+	.diffuse_color = { 0.00f, 0.0f, 1.0f, 1.0f},
+	.specular_color = { 1.0f, 1.0f, 1.0f, 1.0f},
+	.shininess = 100,
+	},
+	{ // ROCK
+	.ambient_color =  { 0.4f, 0.4f, 0.3f, 1.0f},
+	.diffuse_color =  { 0.4f, 0.4f, 0.3f, 1.0f},
+	.specular_color = { 0.3f, 0.3f, 0.3f, 1.0f},
+	.shininess = 5,
+	},
+	{ // SNOW
+	.ambient_color =  { 0.9f, 0.9f, 0.9f, 1.0f},
+	.diffuse_color =  { 0.9f, 0.9f, 0.95f, 1.0f},
+	.specular_color = { 0.9f, 0.9f, 0.9f, 1.0f},
+	.shininess = 10,
+	},
+	{ // SAND
+	.ambient_color = { 0.6f, 0.6f, 0.3f, 1.0f},
+	.diffuse_color = { 0.6f, 0.6f, 0.3f, 1.0f},
+	.specular_color = { 0.6f, 0.6f, 0.3f, 1.0f},
+	.shininess = 1,
 	},
 };
 

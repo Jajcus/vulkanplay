@@ -8,6 +8,7 @@
 #include <string.h>
 #include <errno.h>
 
+#include "models/plane.h"
 #include "models/terrain.h"
 #include "models/tetrahedron.h"
 #include "models/sphere.h"
@@ -15,8 +16,8 @@
 
 const double tick_length = 0.05;
 
-const float move_rate = 1.0; // units per second
-const float rotate_rate = 18.0; // degrees per second
+const float move_rate = 10.0; // units per second
+const float rotate_rate = 25.0; // degrees per second
 
 #define IN_QUEUE_LEN 16
 
@@ -367,6 +368,16 @@ struct world * create_world(void) {
 	world->ch_position.y = sample_terrain_height(world->terrain, world->ch_position.x, world->ch_position.z) + 2.0f;
 
 	scene_add_object(world->scene, world->terrain, MAT4_IDENTITY);
+
+	struct model * water = create_plane(3);
+
+	Mat4 water_matrix = mat4_translate(0,  TERR_WATER_THRESHOLD, 0.0f);
+
+	water_matrix.a.x = 100000;
+	water_matrix.b.y = 100000;
+	water_matrix.c.z = 100000;
+
+	scene_add_object(world->scene, water, water_matrix);
 
 	struct model * tetrahedron = create_tetrahedron(0);
 

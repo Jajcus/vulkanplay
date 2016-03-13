@@ -569,7 +569,7 @@ void render_scene(struct renderer * renderer, uint32_t image_index) {
 	vkapi.vkCmdSetScissor(cmd_buffer, 0, 1, scissors);
 
 	VkClearValue clear_values[] = {
-		{ .color = { .float32 = { 0.0f, 0.0f, 0.5f, 1.0f } } },
+		{ .color = { .float32 = { 0.25f, 0.25f, 1.0f, 1.0f } } },
 		{ .depthStencil = { .depth = 1.0f } }
 	};
 

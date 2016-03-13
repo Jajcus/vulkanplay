@@ -8,6 +8,7 @@ project(vulkanplay)
 add_executable(vulkanplay
 		src/main.c
 		src/model.c
+		src/models/plane.c
 		src/models/sphere.c
 		src/models/tetrahedron.c
 		src/models/terrain.c

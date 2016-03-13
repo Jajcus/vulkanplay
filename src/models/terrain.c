@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include "materials.h"
+
 struct terrain_model {
 	struct model model;
 
@@ -73,7 +75,10 @@ struct model * create_terrain(uint32_t width, uint32_t depth, const char * heigh
 			Vec4 pos = { x, y, z, 1.0f };
 			Vec4 normal = { 0.0f, 1.0f, 0.0f, 0.0f };
 			verts[v].pos = pos;
-			verts[v].material = 2;
+			if ( y / y_step < TERR_GRASS_THRESHOLD) verts[v].material = MATERIAL_SAND;
+			else if ( y / y_step < TERR_ROCK_THRESHOLD) verts[v].material = MATERIAL_GRASS;
+			else if ( y / y_step < TERR_SNOW_THRESHOLD) verts[v].material = MATERIAL_ROCK;
+			else verts[v].material = MATERIAL_SNOW;
 			verts[v].normal = normal;
 			verts[v].flags = V_FLAG_FLAT;
 			uint32_t k;

@@ -337,8 +337,8 @@ void create_pipeline(struct renderer * renderer) {
 	}
 
 	renderer->materials_offset = sizeof(struct uniform_buffer);
-	renderer->lights_offset = renderer->materials_offset + sizeof(struct material) * renderer->scene->materials_len;
-	renderer->vertex_offset = renderer->lights_offset + sizeof(struct light) * renderer->scene->lights_len;
+	renderer->lights_offset = renderer->materials_offset + sizeof(struct material) * MATERIALS_MAX;
+	renderer->vertex_offset = renderer->lights_offset + sizeof(struct light) * LIGHTS_MAX;
 	renderer->instance_offset = renderer->vertex_offset + sizeof(struct vertex_data) * vertices_total;
 	renderer->index_offset = renderer->instance_offset + sizeof(struct instance_data) * instances_total;
 	uint32_t mem_size = renderer->index_offset + sizeof(uint32_t) * indices_total;
@@ -426,8 +426,8 @@ void create_pipeline(struct renderer * renderer) {
 			.buffer = renderer->buffer,
 			.offset = 0,
 			.range = sizeof(struct uniform_buffer)
-				+ renderer->scene->materials_len * sizeof(struct material)
-				+ renderer->scene->lights_len * sizeof(struct light),
+				+ MATERIALS_MAX * sizeof(struct material)
+				+ LIGHTS_MAX * sizeof(struct light),
 		}
 	};
 

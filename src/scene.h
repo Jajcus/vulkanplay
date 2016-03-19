@@ -4,6 +4,9 @@
 #include "model.h"
 #include <pthread.h>
 
+#define MATERIALS_MAX 16
+#define LIGHTS_MAX 16
+
 struct material {
 	Vec4 ambient_color;
 	Vec4 diffuse_color;

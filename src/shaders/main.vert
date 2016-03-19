@@ -15,8 +15,11 @@ struct light_s {
 	vec4 specular;
 };
 
-layout(constant_id = 1) const uint materials_len = 7;
-layout(constant_id = 2) const uint lights_len = 1;
+const uint MATERIALS_MAX = 16;
+const uint LIGHTS_MAX = 16;
+
+layout(constant_id = 1) const uint materials_len = MATERIALS_MAX;
+layout(constant_id = 2) const uint lights_len = LIGHTS_MAX;
 
 layout(std140, binding = 0) uniform buf {
 	mat4 v_matrix;

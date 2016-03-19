@@ -1,6 +1,7 @@
 #include "scene.h"
 #include <malloc.h>
 #include <string.h>
+#include <assert.h>
 #include "materials.h"
 
 static const struct material MATERIALS[MATERIAL_COUNT] = {
@@ -60,6 +61,9 @@ const static struct light LIGHTS[LIGHT_COUNT] = {
 const Vec4 AMBIENT_LIGHT = { 0.02f, 0.02f, 0.02, 1.0f };
 
 struct scene * create_scene(void) {
+
+	assert(MATERIAL_COUNT <= MATERIALS_MAX);
+	assert(LIGHT_COUNT <= LIGHTS_MAX);
 
 	struct scene * scene = (struct scene *) calloc(1, sizeof(struct scene));
 	pthread_mutex_init(&scene->mutex, NULL);

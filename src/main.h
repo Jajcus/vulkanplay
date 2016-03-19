@@ -7,6 +7,7 @@
 extern struct options {
 	bool fullscreen;
 	bool pres_mode;
+	bool polygon_mode;
 	bool stats;
 	float fps_cap;
 

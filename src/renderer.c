@@ -257,8 +257,7 @@ void create_pipeline(struct renderer * renderer) {
 
 	VkPipelineRasterizationStateCreateInfo rs_ci = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-		.polygonMode = VK_POLYGON_MODE_FILL,
-		//.polygonMode = VK_POLYGON_MODE_LINE,
+		.polygonMode = options.polygon_mode, //VK_POLYGON_MODE_FILL,
 		.cullMode = VK_CULL_MODE_BACK_BIT,
 		.frontFace = VK_FRONT_FACE_CLOCKWISE,
 	};

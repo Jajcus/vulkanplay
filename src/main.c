@@ -100,6 +100,14 @@ void parse_args(int argc, char **argv) {
 			int val = atoi(arg);
 			options.pres_mode = val;
 		}
+		else if (!strcmp(opt, "-p") || !strcmp(opt, "--polygon-mode")) {
+			if (!arg) {
+				if (i < argc - 1) arg = argv[++i];
+				else break;
+			}
+			int val = atoi(arg);
+			options.polygon_mode = val;
+		}
 		else if (!strcmp(opt, "-s") || !strcmp(opt, "--stats")) {
 			options.stats = true;
 		}

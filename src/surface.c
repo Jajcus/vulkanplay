@@ -1,5 +1,5 @@
 #include "surface.h"
-#include <malloc.h>
+#include <stdlib.h>
 
 void finalize_surface(struct plat_surface * surface) {
 

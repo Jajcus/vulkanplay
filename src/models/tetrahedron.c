@@ -1,7 +1,7 @@
 
 #include "models/tetrahedron.h"
 
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* tetrahedron vertices */

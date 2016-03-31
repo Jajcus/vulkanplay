@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <alloca.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 #define GET_INST_PROC(x) { \
 	vkapi.x = (PFN_##x) vkGetInstanceProcAddr(vkapi.instance, #x); \

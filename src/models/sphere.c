@@ -1,7 +1,7 @@
 
 #include "models/sphere.h"
 
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct sphere_model {

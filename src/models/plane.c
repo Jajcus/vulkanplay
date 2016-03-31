@@ -1,7 +1,7 @@
 
 #include "models/plane.h"
 
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* plane vertices */

@@ -4,7 +4,8 @@
 #include "input_callbacks.h"
 #include <sys/time.h>
 #include <time.h>
-#include <malloc.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <errno.h>
 

@@ -1,5 +1,5 @@
 #include "scene.h"
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include "materials.h"

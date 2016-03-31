@@ -1,6 +1,6 @@
 #include "model.h"
 
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 
 void destroy_model(struct model * model) {

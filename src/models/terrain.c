@@ -1,7 +1,7 @@
 
 #include "models/terrain.h"
 
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
